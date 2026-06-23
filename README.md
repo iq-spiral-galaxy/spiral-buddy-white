@@ -7,21 +7,21 @@
 > 🔴 [Red](https://github.com/iq-spiral-galaxy/spiral-buddy-red)(AI·수학) · 🟢 [Green](https://github.com/iq-spiral-galaxy/spiral-buddy-green)(실천적 지혜) · 🔵 [Blue](https://github.com/iq-spiral-galaxy/spiral-buddy-blue)(개발) · 🌑 [Black](https://github.com/iq-spiral-galaxy/spiral-buddy-black)(우주·물리) · **⚪ White(마음·의식)**
 
 <p align="center">
-  <img alt="status" src="https://img.shields.io/badge/status-준비_중(WIP)-444?style=flat-square">
+  <img alt="release" src="https://img.shields.io/badge/release-v0.2.0-ec4899?style=flat-square">
   <img alt="platforms" src="https://img.shields.io/badge/macOS%20%C2%B7%20Windows%20%C2%B7%20Linux-supported-555?style=flat-square">
   <img alt="license" src="https://img.shields.io/badge/license-MIT-green?style=flat-square">
 </p>
 
 ---
 
-> 🚧 **준비 중 (WIP)** — Blue 엔진(v0.5.107)에서 분기한 초기 스캐폴드입니다. 정식 빌드는 라이트 테마 마감·도메인 콘텐츠·아이콘 정리 후 출시됩니다. 지금은 **소스에서 직접 실행**할 수 있고(아래 "소스에서 실행"), 한 줄 설치 명령도 미리 넣어뒀어요(첫 릴리스 후 동작).
+> ✅ **공개됨** — Blue 엔진에서 분기해 마음·의식(Psyche) 학습 버디로 완성했습니다. 아래 **한 줄 명령으로 바로 설치**하거나 아래 "소스에서 실행" 항목을 따르세요. (3-OS 자동 빌드 — macOS·Windows·Linux)
 
 <details>
-<summary>⚡ <b>30초 설치 — 한 줄 명령으로 바로 받기</b> &nbsp;(클릭해서 펼치기 · 첫 릴리스 후 동작)</summary>
+<summary>⚡ <b>30초 설치 — 한 줄 명령으로 바로 받기</b> &nbsp;(클릭해서 펼치기)</summary>
 
 <br/>
 
-> 🚧 아직 정식 릴리스 전이라 아래 URL은 첫 출시 후 동작합니다. (자산 파일명은 릴리스 때 최종 확정)
+> 코드서명을 하지 않은 빌드라 macOS Gatekeeper / Windows SmartScreen 경고가 뜰 수 있어요(실제 손상 아님). 아래 macOS 명령엔 `xattr -cr`이 포함돼 자동 해결되고, Windows는 "추가 정보 → 실행"으로 진행하면 됩니다.
 
 **🍎 macOS — Apple Silicon (M1/M2/M3/M4)**
 
@@ -95,14 +95,26 @@ chmod +x ~/SpiralBuddyWhite.AppImage
 
 > 큐레이트 콘텐츠 매핑(`curatedOrg = iq-psyche-lab`) 완료 — 7레이어 31개 레포가 사이드바에 도메인별로 묶여 보입니다.
 
-## ✨ 핵심 기능 (패밀리 공통 엔진)
+## ⚪ White만의 기능 — "마음 학습 전용"
+
+패밀리 공통 엔진 위에, 마음·의식 학습에 맞춘 장치를 얹었습니다. 모든 기능이 한 규율을 강제합니다 — **메커니즘은 끝까지 밝히되, 경험은 끝내 지우지 않는다.**
+
+- 🌉 **설명적 간극 인덱스** — 사이드바의 *설명적 간극* 버튼. 지금까지 쓴 모든 노트에서 "메커니즘이 1인칭 경험을 다 설명하지 못한 지점"만 뽑아 **7레이어별로 모아 보여줍니다.** 학습이 쌓일수록 두꺼워지는 *"환원이 멈춘 경계들의 지도"* — 검색·옵시디언 바로열기 지원. White 철학의 핵심 산출물.
+- 🔁 **원리 횡단 회수 (Synthesis)** — 표상·예측·통합·자기참조·창발 같은 본질 원리는 뉴런부터 자아까지 반복됩니다. Synthesis(L6) 챕터에 들어가면, 버디가 **다른 레이어에서 같은 원리를 만났던 당신의 과거 노트를 자동으로 들고 시작**해 "그때 그 구조랑 같지 않아?"라고 잇습니다.
+- 🧭 **종료-전 간극 가드** — 메커니즘만 쌓고 간극을 한 번도 안 짚은 채 세션을 끝내려 하면, 저장 직전에 *"이 메커니즘이 경험을 어디서부터 못 설명하지?"* 한 턴을 권합니다.
+- 📝 **마음 노트 8섹션** — 세션 종료 시 자동 생성되는 노트가 도메인 구조를 따릅니다: `한 줄 요약 · 메커니즘(3인칭) · 증거/실험 · 설명적 간극 · 1인칭 경험 · 헷갈렸던 지점 · 이전 학습과의 연결 · 다음에 볼 것`. (Obsidian 호환)
+- 🧪 **버디 페르소나 (Psyche)** — 3인칭 메커니즘 먼저(Marr 레벨 구분), **3중 검증**(실험·현상학·계산모델 — *셋이 어긋나는 곳이 곧 간극*), 직관의 함정(호문쿨루스·데카르트 극장) 짚기, 1인칭으로 종결. 좌뇌/우뇌·MBTI·대중심리 같은 뇌 미신은 배제.
+- 🎨 **테마** — 흰 배경 + 핑크 포인트의 "어두운 화이트"(라이트)와 **검정 우주 + 흰 나선 + 핑크**의 다크 모드(음양). 설정에서 전환. 7레이어마다 고유 아이콘.
+
+## ✨ 공통 엔진 기능 (패밀리 공유)
 
 - 🗺️ 로드맵 → 챕터 **나선형 학습** (depth 1 → 2 → 3, 이전 노트가 다음 세션 컨텍스트로 자동 합류)
 - 💬 버디와 **Socratic 대화** — 스트리밍 · 모델 선택 · 세션 Pause/Resume
-- 🎤 **음성 입력** (OS 받아쓰기) · 🔍 **Look-up** 사이드 패널 · 📊 학습 추적(활동 캘린더·streak)
-- 📝 세션 종료 시 **구조화 노트** 자동 생성 (Obsidian 호환) — Psyche는 `메커니즘(3인칭)→증거→설명적 간극→1인칭 경험` 구조로 맞춤됨
+- 🎤 **음성 입력** (OS 받아쓰기) · 🔍 **Look-up** 사이드 패널(개념 즉석 검색) · 📊 학습 추적(활동 캘린더·streak)
 - 🔁 **지난 대화 앱에서 다시보기** — 옵시디언 안 가도 그때 대화 재생
-- 전체 기능 상세는 동일 엔진인 [Blue README](https://github.com/iq-spiral-galaxy/spiral-buddy-blue) 참고
+- 📚 **Curated 콘텐츠 자동 설치** — 설정에서 [iq-psyche-lab](https://github.com/iq-psyche-lab) 31개 레포를 역할 프리셋(마음의 언어부터 / 신경→인지 / 의식·자아 / 전체)으로 한 번에 받기
+- 🔒 API 키 암호화 저장(safeStorage) · 자동 업데이트 · 고정 포트(4597, Blue/Green과 분리)
+- 전체 엔진 상세는 동일 엔진인 [Blue README](https://github.com/iq-spiral-galaxy/spiral-buddy-blue) 참고
 
 ## 🏗️ 소스에서 실행
 
