@@ -103,6 +103,13 @@ const CATEGORY_ICON_BY_NAME = {
   "cross platform": "shuffle",
   "cross-platform": "shuffle",
   synthesis: "dna",
+  // ⚪ White / iq-psyche-lab — 7-레이어 도메인 (각 도메인 = 단일 카테고리라 이름 동일)
+  "language of mind": "book", // 📖 의식 연구의 모국어
+  "neural substrate": "neuron", // ⚡ 신경 기질
+  cognition: "brain", // 💭 인지
+  "computational mind": "cpu", // 🧩 계산적 마음
+  consciousness: "cosmos", // 🌌 의식
+  "the self": "mirror", // 🪞 자아
   uncategorized: "folder",
 };
 
@@ -130,6 +137,13 @@ const ICON_SVG = {
   dna: `<path d="M5 4c14 4 0 12 14 16"/><path d="M19 4c-14 4 0 12 -14 16"/><line x1="7" y1="8" x2="14" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="17" y2="16"/>`,
   // v0.5.55 — Backend 도메인용 wrench
   wrench: `<path d="M14.7 6.3a4.5 4.5 0 0 1 5.6 5.6L18 14l-4-4 0.7-2.1z"/><path d="M14 10l-9 9a2 2 0 0 1-3-3l9-9"/>`,
+  // ⚪ White / Psyche 도메인 아이콘
+  book: `<path d="M3 5.5A1.5 1.5 0 0 1 4.5 4H10a2 2 0 0 1 2 2v13a2 2 0 0 0-2-2H3V5.5Z"/><path d="M21 5.5A1.5 1.5 0 0 0 19.5 4H14a2 2 0 0 0-2 2v13a2 2 0 0 1 2-2h7V5.5Z"/>`,
+  neuron: `<circle cx="12" cy="12" r="2.6"/><path d="M12 9.4V4M12 14.6V20M10.2 10.2 6.6 6.6M13.8 13.8l3.6 3.6M10.2 13.8 6.6 17.4M13.8 10.2l3.6-3.6"/><circle cx="6" cy="6" r="1"/><circle cx="18" cy="18" r="1"/>`,
+  brain: `<path d="M12 6a3 3 0 0 0-5.7-1.3A2.5 2.5 0 0 0 4 7a2.5 2.5 0 0 0 .2 4.3A3 3 0 0 0 6 16.5a2.5 2.5 0 0 0 3.4 2A2.7 2.7 0 0 0 12 20V6Z"/><path d="M12 6a3 3 0 0 1 5.7-1.3A2.5 2.5 0 0 1 20 7a2.5 2.5 0 0 1-.2 4.3A3 3 0 0 1 18 16.5a2.5 2.5 0 0 1-3.4 2A2.7 2.7 0 0 1 12 20"/>`,
+  cpu: `<rect x="7" y="7" width="10" height="10" rx="1.5"/><rect x="10.5" y="10.5" width="3" height="3"/><path d="M9.5 3v2M14.5 3v2M9.5 19v2M14.5 19v2M3 9.5h2M3 14.5h2M19 9.5h2M19 14.5h2"/>`,
+  cosmos: `<path d="M12 3l1.8 5.4L19 10l-5.2 1.6L12 17l-1.8-5.4L5 10l5.2-1.6L12 3Z"/><circle cx="18.5" cy="16.5" r="1.1"/><circle cx="5.5" cy="15.5" r="0.8"/>`,
+  mirror: `<ellipse cx="12" cy="9" rx="5.5" ry="6"/><path d="M12 15v6M9 21h6"/><path d="M9.8 6.4A3.2 3.2 0 0 1 12 5.4"/>`,
 };
 
 function svgIcon(name, className = "inline-icon") {
@@ -264,12 +278,11 @@ function cacheEls() {
 const THEME_KEY = "spiral-buddy:theme";
 
 function applyTheme(theme) {
-  // White(⚪)는 라이트 테마 전용 — 흰 배경·검은 나선·핑크 accent가 정체성이다.
-  // 다크 팔레트는 아직 없으므로(body.dark-mode 규칙 0개) 항상 light-mode로 고정한다.
-  // (.light-mode/.dark-mode 클래스 메커니즘은 향후 White 전용 다크 테마용으로 보존.)
-  const t = "light";
-  document.body.classList.add("light-mode");
-  document.body.classList.remove("dark-mode");
+  // White(⚪) 정체성: light = 흰 배경 + 검은 나선 + 핑크, dark = 검정 우주 + 흰 나선 + 핑크 (음양).
+  // 기본은 light. body.dark-mode 팔레트는 styles.css에 정의됨.
+  const t = theme === "dark" ? "dark" : "light";
+  document.body.classList.toggle("light-mode", t === "light");
+  document.body.classList.toggle("dark-mode", t === "dark");
   document.querySelectorAll(".theme-opt").forEach((b) => {
     const active = b.dataset.theme === t;
     b.classList.toggle("active", active);

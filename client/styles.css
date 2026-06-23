@@ -6261,12 +6261,6 @@ body.sidebar-collapsed:not(.lookup-open) .messages .message {
   margin-bottom: 12px;
 }
 
-/* White(⚪)는 라이트 전용 — 다크 팔레트가 아직 없어 테마 토글을 숨긴다.
- * (app.js applyTheme가 항상 light-mode 고정. 향후 White 다크 테마 추가 시 해제.) */
-.theme-field {
-  display: none;
-}
-
 .theme-toggle,
 .motion-toggle {
   display: inline-flex;
@@ -6866,14 +6860,15 @@ body.light-mode .logo-spiral svg {
  * ═══════════════════════════════════════════════════════════ */
 
 body.light-mode {
-  /* 표면 — 페이지는 핑크빛 살짝 도는 따뜻한 paper, 카드는 순백 */
-  --bg: #faf7fa;
+  /* 표면 — "어두운 화이트": 페이지는 깊은 웜 그레이-핑크 paper, 카드는 순백
+   * (페이지↔카드 대비를 키워 평평하지 않게 — depth 있는 화이트) */
+  --bg: #efe7ee;
   --bg-elev: #ffffff;
-  --bg-elev-2: #f3eef3;
+  --bg-elev-2: #e7dde6;
 
-  /* 경계선 — 부드럽지만 보이게 */
-  --border: #ddd3da;
-  --border-soft: #ece4ea;
+  /* 경계선 — 또렷하게 보이도록 */
+  --border: #d3c6d2;
+  --border-soft: #e2d7e1;
 
   /* 텍스트 — 슬레이트 계열, 점진적 contrast */
   --text: #0f172a;        /* slate-900: 본문 */
@@ -9616,3 +9611,46 @@ body.motion-on .action-btn.quiz[data-quiz-level="4"] {
 }
 body.light-mode .mic-guide { background: #fff; color: #1a2230; }
 body.light-mode .mic-guide kbd { background: #f0f3f6; border-color: #d4dae0; }
+
+/* ═══════════════════════════════════════════════════════════
+ *   ⚪ White — Dark mode ("어두운 화이트": 검정 우주 + 흰 나선 + 핑크, 음양)
+ *   기본은 light. dark는 :root 라이트 팔레트를 다크로 override한다. base 규칙들이
+ *   var() 기반(= Blue의 검증된 다크 레이아웃)이라 팔레트만 바꿔도 대부분 따라온다.
+ *   light-mode 전용 규칙은 dark에선 비활성 → base(다크 지향)가 그대로 보임.
+ * ═══════════════════════════════════════════════════════════ */
+body.dark-mode {
+  --bg: #0d0c11;
+  --bg-elev: #16141b;
+  --bg-elev-1: #16141b;
+  --bg-elev-2: #201d27;
+  --bg-elev-3: #2a2733;
+  --border: #2f2b38;
+  --border-soft: #242029;
+  --text: #ece8f0;
+  --text-dim: #b4adc0;
+  --text-faint: #847d92;
+  --text-muted: #847d92;
+  --accent: #ec4899;
+  --accent-2: #f472b6;
+  --accent-warm: #f9a8d4;
+  --accent-green: #34d399;
+  --success: #34d399;
+  --error: #f87171;
+  --danger: #f87171;
+  --danger-bg: rgba(248, 113, 113, 0.16);
+  --user: #2a1521;
+  --assistant: #18151f;
+}
+
+/* 페이지 바탕 — 우주(검정)에 핑크 성운 살짝 */
+body.dark-mode {
+  background:
+    radial-gradient(ellipse 80% 60% at 50% -10%, rgba(236, 72, 153, 0.07), transparent),
+    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(236, 72, 153, 0.05), transparent),
+    var(--bg) !important;
+}
+
+/* 흰 나선 — light의 검은(핑크) 나선과 음양 대비 */
+body.dark-mode .logo-spiral svg path {
+  stroke: #f1ecf4 !important;
+}
