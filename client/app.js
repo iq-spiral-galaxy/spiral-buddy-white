@@ -881,7 +881,12 @@ function updateModelTierBadge() {
 function displayRepoName(name) {
   let s = String(name ?? "");
   s = s.replace(/-deep-dive$/i, "");
-  s = s.replace(/-/g, " ");
+  s = s.replace(/-/g, " ").trim();
+  // 선두 챕터 번호/접두사 제거 — 사이드바엔 이미 인덱스(1.)가 보이므로 중복.
+  //   "ch1 the terrain" → "the terrain", "05 fixtures" → "fixtures".
+  //   (repo명 "mind body map distilled"·"1984 orwell"은 안 떼짐.)
+  const stripped = s.replace(/^(?:ch(?:apter)?\.?\s*\d+|\d{1,2})\s+/i, "").trim();
+  if (stripped) s = stripped;
   return s.replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
 }
 
@@ -1519,7 +1524,7 @@ function roadmapItemHtml(r) {
     r.maxDepth > 0 ? `<span class="depth-pill">d${r.maxDepth}</span>` : "";
   return `
     <button class="roadmap-item ${isActive ? "active" : ""}" data-id="${escapeAttr(r.id)}">
-      <div class="roadmap-item-name">${escapeHtml(r.name)}</div>
+      <div class="roadmap-item-name">${escapeHtml(displayRepoName(r.name))}</div>
       <div class="roadmap-item-meta">
         ${depthBadge}
         <span class="roadmap-item-progress">${r.visitedChapters}/${r.chapterCount}</span>
