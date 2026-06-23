@@ -254,6 +254,24 @@ async function loadRoadmapChaptersUncached(
   return chapters;
 }
 
+/**
+ * 챕터 제목에서 선두 챕터 번호/접두사 제거 — 사이드바엔 이미 인덱스(1.)가
+ * 보이므로 "Ch1 The Terrain" 같은 중복을 떼고 주제만 남긴다.
+ *   "Ch1 The Terrain" → "The Terrain"
+ *   "Chapter 2: Dualism" → "Dualism"
+ *   "05. Fixtures & SetUp" → "Fixtures & SetUp"
+ *   "3 - Foo" → "Foo"
+ * 제거 후 비면 원본 유지. ("1984 Orwell"처럼 번호가 주제의 일부면 안 떼게
+ * 순수 숫자는 1~2자리 + 뒤에 공백 필요 조건으로 제한.)
+ */
+function cleanChapterTitle(title: string): string {
+  const t = (title ?? "").trim();
+  const stripped = t
+    .replace(/^(?:ch(?:apter)?\.?\s*\d+|\d{1,2})\s*[.:)\-–·]*\s+/i, "")
+    .trim();
+  return stripped || t;
+}
+
 async function loadChapterFile(
   abs: string,
   roadmap: Roadmap,
@@ -266,7 +284,7 @@ async function loadChapterFile(
     typeof parsed.data.title === "string" ? parsed.data.title : null;
   const firstHeading = parsed.content.match(/^#\s+(.+)$/m)?.[1]?.trim();
   const fallback = path.basename(abs, ".md");
-  const title = fmTitle ?? firstHeading ?? fallback;
+  const title = cleanChapterTitle(fmTitle ?? firstHeading ?? fallback);
 
   return {
     id: relativeToRoadmap,
