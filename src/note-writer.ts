@@ -101,6 +101,57 @@ export function stripChapterNumberPrefix(s: string): string {
 }
 
 /**
+ * 노트 body에서 특정 "## 헤딩" 섹션의 본문만 추출 (다음 ## 헤딩 전까지).
+ * 섹션이 없거나, 비었거나, placeholder("_…다루지 않음._")뿐이면 null.
+ * 설명적 간극 인덱스(/gaps)가 "설명적 간극" 섹션을 모을 때 사용.
+ */
+export function extractSectionBody(
+  body: string,
+  heading: string,
+): string | null {
+  const lines = body.split("\n");
+  const start = lines.findIndex(
+    (l) => l.match(/^##\s+(.+?)\s*$/)?.[1]?.trim() === heading,
+  );
+  if (start === -1) return null;
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((l) => /^##\s+/.test(l));
+  const content = (end === -1 ? rest : rest.slice(0, end)).join("\n").trim();
+  if (!content) return null;
+  if (/^_[^_]*다루지 않음[^_]*_$/.test(content)) return null;
+  return content;
+}
+
+/**
+ * 섹션 본문을 개별 항목으로 분해 (설명적 간극 인덱스용).
+ * 최상위 불릿(-, *, 1.)을 항목 경계로 — 들여쓴 sub-불릿은 부모에 포함.
+ * 불릿이 없으면(산문 한 덩어리) 본문 전체를 1개 항목으로 취급.
+ */
+export function splitGapItems(sectionBody: string): string[] {
+  const lines = sectionBody.split("\n");
+  const starts: number[] = [];
+  lines.forEach((l, i) => {
+    if (/^(?:[-*]|\d+[.)])\s+/.test(l)) starts.push(i);
+  });
+  if (starts.length === 0) {
+    const whole = sectionBody.trim();
+    return whole && !/^_[^_]+_$/.test(whole) ? [whole] : [];
+  }
+  const items: string[] = [];
+  for (let k = 0; k < starts.length; k++) {
+    const from = starts[k]!;
+    const to = k + 1 < starts.length ? starts[k + 1]! : lines.length;
+    const chunk = lines
+      .slice(from, to)
+      .join("\n")
+      .replace(/^(?:[-*]|\d+[.)])\s+/, "")
+      .trim();
+    if (chunk && !/^_[^_]+_$/.test(chunk)) items.push(chunk);
+  }
+  return items;
+}
+
+/**
  * 챕터의 roadmapId(예: "unit-testing/anatomy-of-good-tests")를 분해해
  *   { repo, roadmap } 반환. 슬래시가 없으면 repo는 null, roadmap은 통째로.
  */

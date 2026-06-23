@@ -230,6 +230,13 @@ function cacheEls() {
   els.searchModal = $("search-modal");
   els.searchInput = $("search-input");
   els.searchResults = $("search-results");
+  els.gapsOpenBtn = $("gaps-open-btn");
+  els.gapsCount = $("gaps-count");
+  els.gapsModal = $("gaps-modal");
+  els.gapsModalClose = $("gaps-modal-close");
+  els.gapsSearch = $("gaps-search");
+  els.gapsSummary = $("gaps-summary");
+  els.gapsList = $("gaps-list");
   els.activityOpenBtn = $("activity-open-btn");
   els.activityStreak = $("activity-streak");
   els.activityModal = $("activity-modal");
@@ -609,6 +616,25 @@ function wireEvents() {
   // 백그라운드로 휴지통 개수 폴링은 안 함 — 사이드바 갱신마다 같이 fetch
   refreshTrashBadge();
   refreshActivityBadge();
+  refreshGapsBadge();
+
+  // 설명적 간극 인덱스
+  if (els.gapsOpenBtn) {
+    els.gapsOpenBtn.addEventListener("click", openGapsModal);
+  }
+  if (els.gapsModalClose) {
+    els.gapsModalClose.addEventListener("click", closeGapsModal);
+  }
+  if (els.gapsModal) {
+    els.gapsModal.addEventListener("click", (e) => {
+      if (e.target === els.gapsModal) closeGapsModal();
+    });
+  }
+  if (els.gapsSearch) {
+    els.gapsSearch.addEventListener("input", () => {
+      renderGaps(state._gapsData, els.gapsSearch.value);
+    });
+  }
 
   // 학습 활동 캘린더
   if (els.activityOpenBtn) {
@@ -631,6 +657,9 @@ function wireEvents() {
     }
     if (e.key === "Escape" && els.activityModal && !els.activityModal.classList.contains("hidden")) {
       closeActivityModal();
+    }
+    if (e.key === "Escape" && els.gapsModal && !els.gapsModal.classList.contains("hidden")) {
+      closeGapsModal();
     }
   });
   if (els.searchModal) {
@@ -1688,6 +1717,7 @@ async function _handleSessionInterruptionBody() {
   if (action === "save" && state.activeRoadmapId) {
     await loadRoadmapData();
     refreshActivityBadge();
+    refreshGapsBadge();
   }
   return "continue";
 }
@@ -4319,6 +4349,120 @@ function renderTrashList(entries) {
 // 학습 활동 캘린더 (contribution graph)
 // ──────────────────────────────────────────────────────────
 
+// ──────────────────────────────────────────────────────────
+// 설명적 간극 인덱스 (White 전용) — vault 노트들의 "## 설명적 간극"
+// 섹션만 모아 레이어별로 보여주는 "환원이 멈춘 경계들"의 지도.
+// ──────────────────────────────────────────────────────────
+async function refreshGapsBadge() {
+  if (!els.gapsCount) return;
+  try {
+    const data = await fetch("/api/gaps").then((r) => r.json());
+    state._gapsData = data;
+    els.gapsCount.textContent = String(data.gapCount ?? 0);
+  } catch {
+    els.gapsCount.textContent = "—";
+  }
+}
+
+async function openGapsModal() {
+  if (!els.gapsModal) return;
+  els.gapsModal.classList.remove("hidden");
+  els.gapsModal.setAttribute("aria-hidden", "false");
+  if (els.gapsSearch) els.gapsSearch.value = "";
+  if (els.gapsList) {
+    els.gapsList.innerHTML = `<div class="gaps-empty">loading…</div>`;
+  }
+  try {
+    const data = await fetch("/api/gaps").then((r) => r.json());
+    state._gapsData = data;
+    if (els.gapsCount) els.gapsCount.textContent = String(data.gapCount ?? 0);
+    renderGaps(data, "");
+    if (els.gapsSearch) els.gapsSearch.focus();
+  } catch (err) {
+    if (els.gapsList) {
+      els.gapsList.innerHTML = `<div class="gaps-empty">로드 실패: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+}
+
+function closeGapsModal() {
+  if (!els.gapsModal) return;
+  els.gapsModal.classList.add("hidden");
+  els.gapsModal.setAttribute("aria-hidden", "true");
+}
+
+function renderGaps(data, query) {
+  if (!els.gapsList) return;
+  const entries = data?.entries ?? [];
+  const q = (query ?? "").trim().toLowerCase();
+
+  if (!entries.length) {
+    if (els.gapsSummary) els.gapsSummary.textContent = "";
+    els.gapsList.innerHTML = `<div class="gaps-empty">아직 모인 설명적 간극이 없어요.<br/>세션을 끝내고 노트를 저장하면, 노트의 "설명적 간극" 섹션이 여기에 쌓여요.</div>`;
+    return;
+  }
+
+  let shown = 0;
+  const groups = new Map(); // domain id → { domain, blocks } (entries가 레이어 order로 정렬됨)
+  for (const e of entries) {
+    const metaText =
+      `${e.repo ?? ""} ${e.chapter ?? ""} ${e.topic ?? ""} ${e.roadmapName ?? ""}`.toLowerCase();
+    const items = q
+      ? e.items.filter((t) => t.toLowerCase().includes(q) || metaText.includes(q))
+      : e.items;
+    if (!items.length) continue;
+    shown += items.length;
+    const key = e.domain?.id ?? "__none__";
+    if (!groups.has(key)) groups.set(key, { domain: e.domain, blocks: [] });
+    groups.get(key).blocks.push({ entry: e, items });
+  }
+
+  const total = data.gapCount ?? 0;
+  if (els.gapsSummary) {
+    els.gapsSummary.textContent = q
+      ? `매칭 ${shown} / ${total}개`
+      : `노트 ${data.noteCount ?? 0}개 · 간극 ${total}개`;
+  }
+
+  if (!groups.size) {
+    els.gapsList.innerHTML = `<div class="gaps-empty">"${escapeHtml(query)}"에 매칭되는 간극이 없어요.</div>`;
+    return;
+  }
+
+  const html = [];
+  for (const { domain, blocks } of groups.values()) {
+    const count = blocks.reduce((s, b) => s + b.items.length, 0);
+    html.push(
+      domain
+        ? `<div class="gaps-domain-head" style="color:${escapeAttr(domain.color)}">${escapeHtml(domain.emoji)} ${escapeHtml(domain.name)} <span class="gaps-domain-count">${count}</span></div>`
+        : `<div class="gaps-domain-head">🗂 기타 <span class="gaps-domain-count">${count}</span></div>`,
+    );
+    for (const { entry, items } of blocks) {
+      const color = entry.domain?.color ?? "var(--accent)";
+      const source = [
+        entry.repo ? displayRepoName(entry.repo) : entry.roadmapName,
+        entry.chapter,
+        `d${entry.depth}`,
+        entry.date,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const metaInner = entry.obsidianUri
+        ? `<a href="${escapeAttr(entry.obsidianUri)}" title="옵시디언에서 노트 열기">${escapeHtml(source)} ↗</a>`
+        : escapeHtml(source);
+      for (const item of items) {
+        html.push(
+          `<div class="gap-item" style="border-left-color:${escapeAttr(color)}">` +
+            `<div class="gap-text">${renderMarkdown(item)}</div>` +
+            `<div class="gap-meta">${metaInner}</div>` +
+            `</div>`,
+        );
+      }
+    }
+  }
+  els.gapsList.innerHTML = html.join("");
+}
+
 /**
  * 사이드바 활동 버튼의 streak 뱃지 갱신.
  * 오늘 또는 어제까지 끊김 없이 학습한 일수.
@@ -4861,6 +5005,7 @@ function openDeletePopover(anchorEl, target) {
         refreshSidebarRoadmaps(),
         refreshTrashBadge(),
         refreshActivityBadge(),
+        refreshGapsBadge(),
       ]);
     } catch (err) {
       alert(`삭제 실패: ${err.message}`);
@@ -5614,8 +5759,38 @@ async function discardPausedSession(id) {
   setTimeout(() => setStatus(""), 1500);
 }
 
+// 종료-전 간극 가드 — 대화에서 "설명적 간극"을 한 번도 안 짚었으면,
+// 저장 직전에 한 턴 제안(세션당 1회, 스킵 가능). White 철학의 핵심:
+// 메커니즘만 쌓고 간극을 안 짚으면 노트의 설명적 간극 섹션이 비어버림.
+function shouldOfferGapGuard() {
+  if (!state.session) return false;
+  if (state._gapGuardOfferedFor === state.session.id) return false;
+  const msgs = state.messages ?? [];
+  // 실질적 대화가 있었을 때만 (사용자 발화 2턴 이상)
+  const userTurns = msgs.filter((m) => m.role === "user").length;
+  if (userTurns < 2) return false;
+  return !msgs.some((m) => String(m.content ?? "").includes("간극"));
+}
+
 async function endSession() {
   if (!state.session || state.pending) return;
+
+  if (shouldOfferGapGuard()) {
+    state._gapGuardOfferedFor = state.session.id;
+    const confront = confirm(
+      "이번 대화에서 '설명적 간극'을 아직 안 짚었어요.\n" +
+        "지금 저장하면 노트의 설명적 간극 섹션이 비어요.\n\n" +
+        "확인 — 버디와 간극을 한 번 짚고 저장\n" +
+        "취소 — 그대로 저장",
+    );
+    if (confront) {
+      sendMessage(
+        "마무리 전에, 오늘 다룬 메커니즘(3인칭)이 1인칭 경험을 어디서부터 다 설명 못 하는지 — 설명적 간극을 한 줄로 같이 짚어보자. 내가 먼저 말해볼 수 있게 이끌어줘.",
+      );
+      return;
+    }
+  }
+
   if (!confirm("세션 종료하고 옵시디언에 노트 생성할까?")) return;
   const endingSessionId = state.session.id;
 
@@ -5680,6 +5855,7 @@ async function endSession() {
     renderRoadmapSelector();
     await loadRoadmapData();
     refreshActivityBadge();
+    refreshGapsBadge();
     setStatus("");
   } catch (err) {
     card.classList.add("error");

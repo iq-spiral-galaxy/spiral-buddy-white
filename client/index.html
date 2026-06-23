@@ -140,6 +140,16 @@
       </section>
 
       <section class="trash-section">
+        <button id="gaps-open-btn" class="trash-open-btn gaps-btn" type="button" title="설명적 간극 인덱스 — 메커니즘이 1인칭 경험을 다 설명 못 한 경계들 모아보기">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 4v16"></path>
+            <path d="M19 4v16"></path>
+            <path d="M5 12h3.5"></path>
+            <path d="M15.5 12H19"></path>
+          </svg>
+          <span>설명적 간극</span>
+          <span id="gaps-count" class="trash-count gaps-count">—</span>
+        </button>
         <button id="activity-open-btn" class="trash-open-btn activity-btn" type="button" title="학습 활동 캘린더 — 나선 기록과 연속일">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -411,6 +421,20 @@
           <span><kbd>Enter</kbd> 열기</span>
           <span><kbd>ESC</kbd> 닫기</span>
         </div>
+      </div>
+    </div>
+
+    <div id="gaps-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal gaps-modal" role="dialog" aria-modal="true" aria-labelledby="gaps-modal-title">
+        <header class="trash-modal-header">
+          <h3 id="gaps-modal-title">🌉 설명적 간극 인덱스</h3>
+          <button id="gaps-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+        </header>
+        <div class="gaps-toolbar">
+          <input id="gaps-search" type="text" placeholder="간극 검색… (예: 감각질, 결합, 자유의지)" autocomplete="off" spellcheck="false" />
+          <span id="gaps-summary" class="gaps-summary"></span>
+        </div>
+        <div id="gaps-list" class="gaps-list"></div>
       </div>
     </div>
 

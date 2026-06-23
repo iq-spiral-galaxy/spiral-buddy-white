@@ -33,7 +33,12 @@ import {
   writeNewNote,
 } from "./vault.js";
 import { suggestNext } from "./spiral.js";
-import { generateNote, parseTranscriptSection } from "./note-writer.js";
+import {
+  generateNote,
+  parseTranscriptSection,
+  extractSectionBody,
+  splitGapItems,
+} from "./note-writer.js";
 import {
   SESSION_SYSTEM,
   buildInitialContext,
@@ -57,6 +62,7 @@ import {
   groupReposByCategory,
   categorizeLocalRoadmap,
   getOrgCategories,
+  getOrgDomains,
   normalizeRepoName,
   findDomainForCategory,
 } from "./categories.js";
@@ -826,6 +832,95 @@ export function createApi(config: Config) {
   });
 
   // ─────────────────────────────────────────────────────
+  // 설명적 간극 인덱스 (White 전용) — 모든 노트의 "## 설명적 간극"
+  // 섹션만 추출해 레이어(도메인)별로 모아 반환. "Explain it, don't explain
+  // it away" — 학습자가 정직하게 표시한 경계들의 살아있는 지도.
+  // ─────────────────────────────────────────────────────
+  app.get("/gaps", async (c) => {
+    if (!config.vaultPath) {
+      return c.json({ error: "No vault configured" }, 400);
+    }
+    const notes = await listSpiralNotes(config.vaultPath);
+
+    // repo → 레이어(도메인) 매핑 — curated org의 domains 정의 기반
+    const domains = config.curatedOrg
+      ? await getOrgDomains(config.curatedOrg)
+      : null;
+    type GapDomain = {
+      id: string;
+      name: string;
+      emoji: string;
+      color: string;
+      order: number;
+    };
+    const domainByRepo = new Map<string, GapDomain>();
+    if (domains) {
+      for (const d of domains) {
+        for (const cat of d.categories) {
+          for (const r of cat.repos) {
+            domainByRepo.set(normalizeRepoName(r), {
+              id: d.id,
+              name: d.name,
+              emoji: d.emoji,
+              color: d.color,
+              order: d.order ?? 99,
+            });
+          }
+        }
+      }
+    }
+
+    const entries: Array<{
+      items: string[];
+      topic: string;
+      chapter: string;
+      repo: string | null;
+      roadmapName: string | null;
+      depth: number;
+      date: string;
+      obsidianUri: string | null;
+      domain: GapDomain | null;
+    }> = [];
+    let gapCount = 0;
+    for (const n of notes) {
+      const section = extractSectionBody(n.body, "설명적 간극");
+      if (!section) continue;
+      const items = splitGapItems(section);
+      if (items.length === 0) continue;
+      gapCount += items.length;
+      const domain = n.repo
+        ? (domainByRepo.get(normalizeRepoName(n.repo)) ?? null)
+        : null;
+      entries.push({
+        items,
+        topic: n.topic,
+        chapter: n.chapter,
+        repo: n.repo,
+        roadmapName: n.roadmapName,
+        depth: n.depth,
+        date: n.date,
+        obsidianUri: obsidianUri(n.filePath),
+        domain,
+      });
+    }
+
+    // 레이어 order 오름차순 → 같은 레이어 안에선 최신 노트 먼저
+    entries.sort((a, b) => {
+      const ao = a.domain?.order ?? 999;
+      const bo = b.domain?.order ?? 999;
+      if (ao !== bo) return ao - bo;
+      return (b.date ?? "").localeCompare(a.date ?? "");
+    });
+
+    return c.json({
+      totalNotes: notes.length,
+      noteCount: entries.length,
+      gapCount,
+      entries,
+    });
+  });
+
+  // ─────────────────────────────────────────────────────
   // 4. History (전체 or 로드맵별 필터링)
   // ─────────────────────────────────────────────────────
 
@@ -1237,7 +1332,41 @@ export function createApi(config: Config) {
       }),
     );
     const depth = priorOnSame.length + 1;
-    const related = priorOnSame.slice(0, 5);
+    let related = priorOnSame.slice(0, 5);
+
+    // 원리 횡단 회수 (Synthesis 모드) — Synthesis 레이어(L6) 챕터 진입 시,
+    // 같은 cross-cutting 원리 태그가 붙은 *다른 레이어*의 노트를 related로 주입.
+    // "6원리가 모든 레이어에서 반복된다"는 랩의 완성 기준을 실제로 구현 —
+    // 버디가 학습자가 신경/인지/의식에서 만난 같은 원리를 들고 시작하게 함.
+    // 태그는 note-writer가 자동 부여(representation/prediction/binding/…).
+    const SYNTHESIS_TAG_BY_REPO: Record<string, string> = {
+      "representation-everywhere": "representation",
+      "prediction-everywhere": "prediction",
+      "binding-integration-everywhere": "binding",
+      "strange-loop-everywhere": "self-reference",
+      "mind-emergence-distilled": "emergence",
+    };
+    // 평탄 클론("prediction-everywhere/..")과 계층 클론("synthesis/prediction-everywhere/..")
+    // 둘 다 잡기 위해 path segment 전체 + roadmap 이름을 검사.
+    const candidates = [
+      ...roadmap.id.split("/").map((s) => s.trim().toLowerCase()),
+      (roadmap.name ?? "").trim().toLowerCase(),
+    ];
+    const principleTag =
+      candidates.map((s) => SYNTHESIS_TAG_BY_REPO[s]).find((t) => t !== undefined) ??
+      null;
+    if (principleTag) {
+      const seen = new Set(related.map((n) => n.filePath));
+      const crossLayer = allNotes
+        .filter(
+          (n) =>
+            !seen.has(n.filePath) &&
+            Array.isArray(n.tags) &&
+            n.tags.includes(principleTag),
+        )
+        .slice(0, 4); // allNotes는 date desc 정렬 — 최신 4개
+      related = [...related, ...crossLayer];
+    }
 
     const session = createSession({
       chapter,
