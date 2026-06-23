@@ -1,0 +1,283 @@
+name: Release
+
+# v* 태그 push 시 macOS/Windows/Linux 빌드 + GitHub Releases에 자동 업로드
+# 예: git tag v0.4.0 && git push origin v0.4.0
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    # 정상 빌드는 1-3분. 7분 초과는 거의 hang이므로 자동 cancel.
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # pnpm 11.1.1+가 node:sqlite (Node 22.13+) 빌트인을 요구
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          # version은 package.json의 packageManager 필드에서 자동으로 가져옴.
+          # 명시하면 두 곳이 충돌(ERR_PNPM_BAD_PM_VERSION).
+          run_install: false
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/pnpm/store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      # electron zip + electron-builder-binaries 캐시 — 다운로드 stall(hang)이
+      # macOS/Linux 빌드를 9분+ 멈추는 주 원인이라 캐시로 다운로드 자체를 줄임.
+      - name: Cache electron binaries
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~\AppData\Local\electron\Cache
+            ~\AppData\Local\electron-builder\Cache
+          key: ${{ runner.os }}-electron-30.5.1
+          restore-keys: ${{ runner.os }}-electron-
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Linux: AppImage 빌드에 libfuse2 필요. Ubuntu 24.04+에서는 기본 미포함이라
+      # electron-builder가 sandbox/fuse 관련 setup에서 멈추는 케이스가 잦음.
+      - name: (Linux) Install AppImage build deps
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 || sudo apt-get install -y libfuse2t64
+
+      - name: Build TypeScript
+        run: pnpm exec tsc
+
+      - name: Build Electron app (publish=never)
+        env:
+          # macOS code signing은 skip (자가서명/notarization은 후속 단계)
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+          # Linux: electron-builder가 appimage tool을 다운로드하다 hang하는 케이스 방지
+          USE_HARD_LINKS: false
+          DEBUG: ${{ runner.os == 'Linux' && 'electron-builder' || '' }}
+        timeout-minutes: 22
+        # publish는 별도 step. electron-builder가 한 step에서 multi-arch를 병렬
+        # publish하면 Release create race(422)라 분리.
+        # 또한 electron zip 다운로드가 stall하면 프로세스가 무한 hang함 →
+        # 단순 retry로는 못 잡음. perl alarm으로 각 시도에 360초 hard timeout을
+        # 걸고(타임아웃 시 SIGALRM으로 강제 종료) 재시도. perl은 macOS/Linux/
+        # Windows(git-bash) 모두 기본 탑재.
+        shell: bash
+        run: |
+          run_with_timeout() {
+            perl -e 'alarm shift @ARGV; exec @ARGV or die "exec failed: $!"' \
+              360 pnpm exec electron-builder --publish never
+          }
+          for i in 1 2 3; do
+            if run_with_timeout; then
+              echo "✓ build succeeded on attempt $i"
+              exit 0
+            fi
+            echo "✗ build attempt $i failed or timed out; retry in 15s…"
+            sleep 15
+          done
+          echo "build failed after 3 attempts"
+          exit 1
+
+      - name: Make latest-aliased copies (API-free install)
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          mkdir -p release/latest-aliases
+          # macOS arm64
+          for f in release/*-arm64.dmg; do
+            [ -f "$f" ] || continue
+            cp "$f" "release/latest-aliases/Spiral-Buddy-latest-arm64.dmg"
+          done
+          # macOS Intel (버전만 들어간 dmg — arm64 가 아닌 것)
+          for f in release/*.dmg; do
+            case "$f" in *-arm64.dmg) continue;; esac
+            [ -f "$f" ] || continue
+            cp "$f" "release/latest-aliases/Spiral-Buddy-latest.dmg"
+          done
+          # Windows setup
+          for f in release/*Setup*.exe; do
+            [ -f "$f" ] || continue
+            cp "$f" "release/latest-aliases/Spiral-Buddy-latest-Setup.exe"
+          done
+          # Linux AppImage
+          for f in release/*.AppImage; do
+            [ -f "$f" ] || continue
+            cp "$f" "release/latest-aliases/Spiral-Buddy-latest.AppImage"
+          done
+          ls -la release/latest-aliases/ || true
+
+      - name: Upload to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: |
+            release/*.dmg
+            release/*.exe
+            release/*.exe.blockmap
+            release/*.AppImage
+            release/latest*.yml
+            release/latest-aliases/*
+          fail_on_unmatched_files: false
+
+      - name: Upload artifacts (fallback)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: spiral-buddy-${{ runner.os }}
+          path: |
+            release/*.dmg
+            release/*.exe
+            release/*.AppImage
+            release/*.yml
+          if-no-files-found: ignore
+
+  # 3개 OS 빌드 끝나면 release body에 사용자 안내문 자동 작성
+  release-notes:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          cat > NOTES.md <<'EOF'
+          # Spiral Buddy ${TAG_PLACEHOLDER}
+
+          ## ⚡ 30초 설치 (한 줄 명령)
+
+          터미널/PowerShell에 그대로 붙여넣기 — 실행 중이면 자동 종료 → 최신 받기 → 설치 → 재실행. **GitHub API 안 거치니 rate-limit 없음.**
+
+          <details>
+          <summary>🍎 <strong>macOS — Apple Silicon (M1/M2/M3/M4)</strong></summary>
+
+          ```bash
+          osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
+          cd /tmp && \
+          curl -fL -o /tmp/spiral.dmg "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest-arm64.dmg" && \
+          MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
+          rm -rf '/Applications/Spiral Buddy.app' && \
+          cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
+          hdiutil detach -quiet "$MOUNT" && \
+          xattr -cr '/Applications/Spiral Buddy.app' && \
+          rm -f /tmp/spiral.dmg && \
+          open '/Applications/Spiral Buddy.app'
+          ```
+          </details>
+
+          <details>
+          <summary>🍎 <strong>macOS — Intel</strong></summary>
+
+          ```bash
+          osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null; sleep 1; \
+          cd /tmp && \
+          curl -fL -o /tmp/spiral.dmg "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest.dmg" && \
+          MOUNT=$(hdiutil attach -nobrowse /tmp/spiral.dmg | grep -o '/Volumes/.*' | head -1) && \
+          rm -rf '/Applications/Spiral Buddy.app' && \
+          cp -R "$MOUNT/Spiral Buddy.app" /Applications/ && \
+          hdiutil detach -quiet "$MOUNT" && \
+          xattr -cr '/Applications/Spiral Buddy.app' && \
+          rm -f /tmp/spiral.dmg && \
+          open '/Applications/Spiral Buddy.app'
+          ```
+          </details>
+
+          <details>
+          <summary>🪟 <strong>Windows — PowerShell</strong></summary>
+
+          시작 메뉴에서 **PowerShell** 검색 → 열고 그대로 붙여넣기:
+
+          ```powershell
+          $ErrorActionPreference = "Stop"
+          Get-Process "Spiral Buddy" -EA SilentlyContinue | Stop-Process -Force
+          $exe = "$env:TEMP\spiral-buddy-setup.exe"
+          Invoke-WebRequest -Uri "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest-Setup.exe" -OutFile $exe
+          Start-Process -FilePath $exe -ArgumentList "/S" -Wait
+          Remove-Item $exe -Force
+          $app = "$env:LOCALAPPDATA\Programs\spiral-buddy\Spiral Buddy.exe"
+          if (Test-Path $app) { Start-Process $app }
+          ```
+          </details>
+
+          <details>
+          <summary>🐧 <strong>Linux — AppImage</strong></summary>
+
+          ```bash
+          curl -fL -o ~/SpiralBuddy.AppImage "https://github.com/iq-spiral-galaxy/spiral-buddy-blue/releases/latest/download/Spiral-Buddy-latest.AppImage"
+          chmod +x ~/SpiralBuddy.AppImage
+          ~/SpiralBuddy.AppImage
+          ```
+          </details>
+
+          ---
+
+          ## 또는 수동 다운로드
+
+          | OS | 파일 |
+          |---|---|
+          | macOS Apple Silicon | `Spiral.Buddy-*-arm64.dmg` |
+          | macOS Intel | `Spiral.Buddy-*.dmg` (arm64 아닌 것) |
+          | Windows | `Spiral.Buddy.Setup.*.exe` |
+          | Linux | `Spiral.Buddy-*.AppImage` |
+
+          ## ⚠️ macOS — "손상됨" 경고가 뜨면
+
+          Code signing/공증을 안 한 빌드라 macOS Gatekeeper가 차단합니다 (실제 손상 아님).
+          위 한 줄 명령은 `xattr -cr`이 포함되어 자동 해결됩니다. 수동으로 받았다면:
+
+          ```bash
+          xattr -cr "/Applications/Spiral Buddy.app"
+          ```
+
+          ## ⚠️ Windows — SmartScreen 경고가 뜨면
+
+          "추가 정보" → "실행" 클릭. 코드는 모두 공개되어 있습니다.
+
+          ## 사용 방법
+
+          1. 본인 OS 파일 다운로드 → 더블클릭
+          2. Setup wizard에서 **API 키** + **Obsidian Vault 경로** 입력
+             - Vault는 흔한 위치에서 자동 감지됨 (클릭 한 번)
+          3. (선택) **"iq-dev-lab 38개 자동 다운로드"** 카드 클릭 → 부모 폴더 선택 → 1~5분 대기
+          4. "시작하기" → 메인 앱
+
+          ## 자세한 안내
+
+          [README](https://github.com/iq-spiral-galaxy/spiral-buddy-blue/blob/main/README.md)
+          EOF
+          # ${TAG} 치환
+          sed -i "s/\${TAG_PLACEHOLDER}/${TAG}/g" NOTES.md
+          gh release edit "$TAG" --notes-file NOTES.md

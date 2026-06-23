@@ -1,0 +1,57 @@
+name: DCO
+
+# PR의 모든 커밋에 Developer Certificate of Origin sign-off가 있는지 검사.
+# (release.yml과 무관 — pull_request에서만 동작, main 직접 push엔 영향 없음)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  dco-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR head
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify Signed-off-by on every commit
+        shell: bash
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          head="${{ github.event.pull_request.head.sha }}"
+          # PR에 포함된 커밋만 검사 (base..head)
+          commits="$(git rev-list "$base..$head")"
+          if [ -z "$commits" ]; then
+            echo "검사할 커밋 없음 — 통과"
+            exit 0
+          fi
+          missing=0
+          for c in $commits; do
+            # merge 커밋은 sign-off 면제
+            parents="$(git show -s --format='%P' "$c" | wc -w)"
+            if [ "$parents" -gt 1 ]; then continue; fi
+            if git show -s --format='%B' "$c" \
+              | grep -qiE '^Signed-off-by: .+ <.+@.+>'; then
+              echo "✓ $c"
+            else
+              subj="$(git show -s --format='%s' "$c")"
+              echo "::error::커밋 누락 — $c \"$subj\" 에 Signed-off-by 가 없습니다."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo ""
+            echo "DCO 실패: 모든 커밋에 'Signed-off-by' 가 필요합니다."
+            echo "  · 새 커밋:  git commit -s"
+            echo "  · 마지막:   git commit --amend -s && git push -f"
+            echo "  · 여러 개:  git rebase --signoff <base> && git push -f"
+            echo "자세히: CONTRIBUTING.md"
+            exit 1
+          fi
+          echo "✓ 모든 커밋 DCO 통과"

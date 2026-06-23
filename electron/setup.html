@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+    <title>Spiral Buddy — 초기 설정</title>
+    <style>
+      :root {
+        --bg: #090c12;
+        --bg-elev: #121821;
+        --bg-elev-2: #19212c;
+        --border: rgba(148, 169, 190, 0.22);
+        --border-soft: rgba(148, 169, 190, 0.12);
+        --text: #edf3f5;
+        --text-dim: #a6b2bb;
+        --text-faint: #74818b;
+        --accent: #a9bac5;
+        --accent-warm: #d1a06f;
+        --danger: #ff7a7a;
+      }
+      * { box-sizing: border-box; }
+      .hidden { display: none !important; }
+      body {
+        margin: 0;
+        padding: 26px 30px;
+        background:
+          radial-gradient(circle at 18% 8%, rgba(159, 179, 193, 0.09), transparent 34%),
+          linear-gradient(180deg, #0b0f16 0%, var(--bg) 100%);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .setup-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 22px;
+      }
+      .setup-logo {
+        display: inline-grid;
+        place-items: center;
+        width: 38px;
+        height: 38px;
+        border: 1px solid rgba(138, 232, 255, 0.24);
+        border-radius: 50%;
+        background:
+          linear-gradient(145deg, rgba(138, 232, 255, 0.1), rgba(197, 167, 255, 0.08)),
+          rgba(10, 13, 19, 0.72);
+        box-shadow:
+          0 0 18px rgba(138, 232, 255, 0.18),
+          inset 0 0 14px rgba(138, 232, 255, 0.075),
+          inset 0 0 1px rgba(255, 255, 255, 0.24);
+        flex-shrink: 0;
+      }
+      .setup-logo svg {
+        width: 34px;
+        height: 34px;
+        display: block;
+        filter:
+          drop-shadow(0 0 8px rgba(138, 232, 255, 0.36))
+          drop-shadow(0 0 14px rgba(197, 167, 255, 0.14));
+      }
+      h1 {
+        font-size: 18px;
+        margin: 0 0 3px;
+        color: var(--text);
+        font-weight: 700;
+        letter-spacing: 0;
+      }
+      .lead {
+        color: var(--text-dim);
+        margin: 0;
+        font-size: 12px;
+      }
+      .field {
+        margin-bottom: 18px;
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+        color: var(--text);
+      }
+      .hint {
+        font-size: 11px;
+        color: var(--text-faint);
+        margin-top: 4px;
+      }
+      .hint a {
+        color: var(--accent);
+        text-decoration: none;
+        cursor: pointer;
+      }
+      input[type="text"], input[type="password"] {
+        width: 100%;
+        padding: 8px 10px;
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text);
+        font-family: inherit;
+        font-size: 13px;
+        outline: none;
+      }
+      input:focus {
+        border-color: rgba(169, 186, 197, 0.58);
+        box-shadow: 0 0 0 3px rgba(159, 179, 193, 0.08);
+      }
+      .input-row {
+        display: flex;
+        gap: 8px;
+      }
+      .input-row input { flex: 1; }
+      .pick-btn {
+        background: var(--bg-elev-2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        padding: 8px 14px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .pick-btn:hover { background: var(--border); }
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 24px;
+        padding-top: 18px;
+        border-top: 1px solid var(--border-soft);
+      }
+      .primary {
+        background: linear-gradient(135deg, #dce2e3, #cdb996);
+        color: #10141b;
+        border: 0;
+        padding: 9px 18px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .primary:disabled { opacity: 0.5; cursor: not-allowed; }
+      .error {
+        color: var(--danger);
+        font-size: 12px;
+        margin-top: 8px;
+        min-height: 1em;
+      }
+      .optional-badge {
+        font-size: 10px;
+        color: var(--text-faint);
+        font-weight: 400;
+        margin-left: 6px;
+      }
+      .vault-detected {
+        font-size: 11px;
+        color: var(--accent);
+        margin-top: 6px;
+        cursor: pointer;
+      }
+      .vault-detected:hover { text-decoration: underline; }
+      .divider-text {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 14px 0 10px;
+        color: var(--text-faint);
+        font-size: 11px;
+      }
+      .divider-text::before,
+      .divider-text::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: var(--border-soft);
+      }
+      .download-card {
+        background: var(--bg-elev);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 14px 16px;
+        cursor: pointer;
+        transition: border-color 120ms, background 120ms;
+      }
+      .download-card:hover:not(.disabled):not(.downloading):not(.done) {
+        border-color: rgba(169, 186, 197, 0.42);
+        background: rgba(159, 179, 193, 0.045);
+      }
+      .download-card.disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .download-card-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 4px;
+      }
+      .download-card-icon {
+        display: inline-grid;
+        place-items: center;
+        width: 25px;
+        height: 25px;
+        border: 1px solid rgba(169, 186, 197, 0.2);
+        border-radius: 7px;
+        color: var(--accent);
+        background:
+          linear-gradient(145deg, rgba(159, 179, 193, 0.09), rgba(209, 160, 111, 0.035)),
+          rgba(7, 11, 17, 0.66);
+        flex-shrink: 0;
+      }
+      .download-card-icon svg {
+        width: 14px;
+        height: 14px;
+      }
+      .download-card-sub {
+        font-size: 11px;
+        color: var(--text-faint);
+        line-height: 1.5;
+      }
+      .download-progress {
+        margin-top: 10px;
+        font-size: 11px;
+        color: var(--text-dim);
+        font-family: ui-monospace, "JetBrains Mono", monospace;
+      }
+      .progress-bar {
+        height: 4px;
+        background: var(--bg-elev-2);
+        border-radius: 2px;
+        margin-top: 6px;
+        overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), var(--accent-warm));
+        width: 0%;
+        transition: width 200ms ease-out;
+      }
+      .download-card.done {
+        border-color: rgba(169, 186, 197, 0.42);
+        background: rgba(159, 179, 193, 0.055);
+      }
+
+      /* v0.5.46 — Setup wizard 역할 프리셋 */
+      .setup-presets {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .setup-preset {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 12px 14px;
+        background: rgba(159, 179, 193, 0.04);
+        border: 1px solid rgba(169, 186, 197, 0.22);
+        border-radius: 10px;
+        color: var(--text, #edf3f5);
+        cursor: pointer;
+        text-align: left;
+        font-family: inherit;
+        transition: all 0.14s ease;
+      }
+      .setup-preset:hover:not(:disabled) {
+        background: rgba(126, 226, 255, 0.06);
+        border-color: rgba(126, 226, 255, 0.5);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 14px rgba(126, 226, 255, 0.16);
+      }
+      .setup-preset:disabled { opacity: 0.5; cursor: not-allowed; }
+      .setup-preset.recommended {
+        border-color: rgba(126, 226, 255, 0.5);
+        background: linear-gradient(135deg, rgba(126, 226, 255, 0.06), rgba(197, 167, 255, 0.04));
+      }
+      .setup-preset.heavy {
+        border-color: rgba(255, 138, 91, 0.4);
+      }
+      .setup-preset-head {
+        display: flex; align-items: center; gap: 6px;
+        font-size: 13px;
+      }
+      .setup-preset-emoji { font-size: 16px; }
+      .setup-preset-tag {
+        margin-left: auto;
+        font-size: 9px; font-weight: 700;
+        padding: 1px 6px; border-radius: 999px;
+        background: rgba(126, 226, 255, 0.16); color: #7ee2ff;
+      }
+      .setup-preset-tag.heavy { background: rgba(255, 138, 91, 0.16); color: #ff8a5b; }
+      .setup-preset-sub {
+        font-size: 11px; color: rgba(159, 179, 193, 0.8); line-height: 1.4;
+      }
+      .setup-presets-hint {
+        font-size: 11px; color: rgba(159, 179, 193, 0.65);
+        margin-top: 8px; padding: 6px 2px;
+      }
+      .setup-presets-hint strong { color: rgba(159, 179, 193, 0.95); }
+    </style>
+  </head>
+  <body>
+    <header class="setup-brand">
+      <div class="setup-logo" aria-hidden="true">
+        <svg viewBox="0 0 64 64" fill="none">
+          <defs>
+            <radialGradient id="setup-spiral-glow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#7ee2ff" stop-opacity="0.6" />
+              <stop offset="60%" stop-color="#7ee2ff" stop-opacity="0.12" />
+              <stop offset="100%" stop-color="#7ee2ff" stop-opacity="0" />
+            </linearGradient>
+            <linearGradient id="setup-spiral-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#7ee2ff" />
+              <stop offset="50%" stop-color="#b794f6" />
+              <stop offset="100%" stop-color="#5fd5ff" />
+            </linearGradient>
+          </defs>
+          <circle cx="32" cy="32" r="30" fill="url(#setup-spiral-glow)" />
+          <path
+            d="M32 32 m0 0 a3 3 0 0 1 6 0 a6 6 0 0 1 -12 0 a9 9 0 0 1 18 0 a12 12 0 0 1 -24 0 a15 15 0 0 1 30 0 a18 18 0 0 1 -36 0 a21 21 0 0 1 42 0"
+            stroke="url(#setup-spiral-stroke)"
+            stroke-width="2.5"
+            stroke-linecap="round"
+          />
+          <circle cx="32" cy="32" r="2" fill="#7ee2ff" />
+        </svg>
+      </div>
+      <div>
+        <h1>Spiral Buddy</h1>
+        <p class="lead">
+          처음 사용 시 한 번만 설정하면 됩니다. 이 정보는 사용자 디렉토리에 저장되며 외부로 전송되지 않습니다.
+        </p>
+      </div>
+    </header>
+
+    <div class="field">
+      <label for="api-key">Anthropic API Key</label>
+      <input id="api-key" type="password" placeholder="sk-ant-..." autocomplete="off" />
+      <div class="hint">
+        <a id="link-console" data-href="https://console.anthropic.com/settings/keys">console.anthropic.com</a>에서 발급
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="vault-path">Obsidian Vault 경로</label>
+      <div class="input-row">
+        <input id="vault-path" type="text" placeholder="/Users/.../Obsidian Vault" />
+        <button class="pick-btn" id="pick-vault" type="button">선택…</button>
+      </div>
+      <div class="hint">학습 노트가 저장될 위치. <code>.obsidian/</code> 디렉토리가 있는 vault 루트나 그 하위 폴더.</div>
+      <div class="vault-detected hidden" id="vault-detected"></div>
+      <div class="hint hidden" id="vault-not-found">
+        ⚠️ Obsidian vault를 자동으로 찾지 못했어요.
+        Obsidian이 없다면 <a id="link-obsidian" data-href="https://obsidian.md/download">obsidian.md에서 설치</a>한 뒤
+        vault를 하나 만들고 위에서 그 폴더를 선택하세요.
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="roadmap-root">학습 자료 디렉토리 <span class="optional-badge">선택</span></label>
+      <div class="input-row">
+        <input id="roadmap-root" type="text" placeholder="/Users/.../iq-dev-lab (선택)" />
+        <button class="pick-btn" id="pick-roadmap" type="button">선택…</button>
+      </div>
+      <div class="hint">이미 학습 자료가 있다면 그 경로를 지정. 비워두면 GitHub Curated (iq-dev-lab)만 사용.</div>
+
+      <div class="divider-text">또는 역할 프리셋으로 한 번에 받기</div>
+
+      <div class="setup-presets" id="setup-presets">
+        <button type="button" class="setup-preset recommended" data-preset="backend">
+          <div class="setup-preset-head"><span class="setup-preset-emoji">🔧</span><strong>백엔드 개발자</strong><span class="setup-preset-tag">추천</span></div>
+          <div class="setup-preset-sub">Foundations · Languages · Backend (43)</div>
+        </button>
+        <button type="button" class="setup-preset" data-preset="frontend">
+          <div class="setup-preset-head"><span class="setup-preset-emoji">🌐</span><strong>프론트엔드 개발자</strong></div>
+          <div class="setup-preset-sub">Foundations · Languages · Frontend (13)</div>
+        </button>
+        <button type="button" class="setup-preset" data-preset="mobile">
+          <div class="setup-preset-head"><span class="setup-preset-emoji">📱</span><strong>모바일 개발자</strong></div>
+          <div class="setup-preset-sub">Android · iOS · Cross-Platform + 기본</div>
+        </button>
+        <button type="button" class="setup-preset heavy" data-preset="fullstack">
+          <div class="setup-preset-head"><span class="setup-preset-emoji">🧬</span><strong>풀스택 · CS 깊게</strong><span class="setup-preset-tag heavy">무거움</span></div>
+          <div class="setup-preset-sub">모든 도메인 · Synthesis까지 (87)</div>
+        </button>
+      </div>
+
+      <div class="setup-presets-hint">
+        나중에 <strong>설정</strong>에서 도메인별로 더 받거나 빼실 수 있어요.
+      </div>
+
+      <div class="download-progress hidden" id="download-progress"></div>
+      <div class="progress-bar hidden" id="progress-bar-wrap"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+
+    <div class="error" id="error-msg"></div>
+
+    <div class="actions">
+      <button class="primary" id="save-btn" type="button">시작하기</button>
+    </div>
+
+    <script src="setup.js"></script>
+  </body>
+</html>

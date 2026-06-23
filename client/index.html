@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spiral Buddy White</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/styles/github-dark.min.css"
+    />
+  </head>
+  <body>
+    <aside id="sidebar">
+      <header class="brand">
+        <div class="brand-row">
+          <div class="logo-spiral" aria-hidden="true">
+            <svg viewBox="0 0 64 64" width="40" height="40">
+              <defs>
+                <radialGradient id="spiral-glow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#ec4899" stop-opacity="0.6" />
+                  <stop offset="60%" stop-color="#ec4899" stop-opacity="0.12" />
+                  <stop offset="100%" stop-color="#ec4899" stop-opacity="0" />
+                </radialGradient>
+                <linearGradient id="spiral-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="#ec4899" />
+                  <stop offset="50%" stop-color="#f472b6" />
+                  <stop offset="100%" stop-color="#db2777" />
+                </linearGradient>
+              </defs>
+              <circle cx="32" cy="32" r="30" fill="url(#spiral-glow)" class="spiral-glow-pulse" />
+              <g class="spiral-rotate">
+                <path
+                  d="M32 32 m0 0 a3 3 0 0 1 6 0 a6 6 0 0 1 -12 0 a9 9 0 0 1 18 0 a12 12 0 0 1 -24 0 a15 15 0 0 1 30 0 a18 18 0 0 1 -36 0 a21 21 0 0 1 42 0"
+                  fill="none"
+                  stroke="url(#spiral-stroke)"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                />
+                <circle cx="32" cy="32" r="2" fill="#ec4899" class="spiral-center-pulse" />
+              </g>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <h1 class="brand-title">Spiral Buddy Blue</h1>
+          </div>
+        </div>
+      </header>
+
+      <section class="workspace-selector" id="workspace-section">
+        <h2>Workspace</h2>
+        <button id="workspace-current" class="workspace-current" title="워크스페이스 전환">
+          <span class="workspace-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 3.5 19 7.4v7.2l-7 3.9-7-3.9V7.4l7-3.9Z" />
+              <path d="m5 7.4 7 3.9 7-3.9" />
+              <path d="M12 11.3v7.2" />
+              <path d="M8.5 9.3v3.9l3.5 2 3.5-2V9.3" />
+            </svg>
+          </span>
+          <span class="workspace-name" id="workspace-name">loading…</span>
+          <span class="caret">▼</span>
+        </button>
+        <div id="workspace-list" class="workspace-list hidden"></div>
+      </section>
+
+      <section class="sidebar-search-section">
+        <div class="sidebar-search-wrap">
+          <span class="sidebar-search-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="7"/>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+          </span>
+          <input
+            id="sidebar-search"
+            class="sidebar-search-input"
+            type="search"
+            placeholder="레포 · 카테고리 · 챕터 검색…"
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="사이드바 검색"
+          />
+          <kbd class="sidebar-search-kbd" aria-hidden="true">⌘F</kbd>
+          <button id="sidebar-search-clear" class="sidebar-search-clear hidden" type="button" aria-label="검색어 지우기" title="검색어 지우기 (Esc)">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <div id="sidebar-search-meta" class="sidebar-search-meta hidden"></div>
+      </section>
+
+      <section class="roadmap-selector" id="roadmap-section">
+        <h2>Roadmap</h2>
+        <button id="roadmap-current" class="roadmap-current">
+          <span class="roadmap-name">loading…</span>
+          <span class="caret">▼</span>
+        </button>
+        <div id="roadmap-list" class="roadmap-list hidden"></div>
+      </section>
+
+      <section class="suggestion" id="suggestion-box">
+        <div class="loading">🧭 Analyzing trajectory…</div>
+      </section>
+
+      <section class="paused-section hidden" id="paused-section">
+        <h2>
+          <span class="paused-section-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="6" y="4" width="4" height="16"/>
+              <rect x="14" y="4" width="4" height="16"/>
+            </svg>
+          </span>
+          Paused
+          <span class="paused-count-badge" id="paused-count-badge">0</span>
+        </h2>
+        <ul id="paused-list" class="paused-list" role="list"></ul>
+      </section>
+
+      <section class="chapters">
+        <h2>Chapters</h2>
+        <ol id="chapter-list" class="list">
+          <li class="loading">loading…</li>
+        </ol>
+      </section>
+
+      <section class="history">
+        <h2>Past sessions</h2>
+        <ol id="history-list" class="list">
+          <li class="loading">loading…</li>
+        </ol>
+      </section>
+
+      <section class="trash-section">
+        <button id="activity-open-btn" class="trash-open-btn activity-btn" type="button" title="학습 활동 캘린더 — 나선 기록과 연속일">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          <span>학습 활동</span>
+          <span id="activity-streak" class="trash-count activity-streak">—</span>
+        </button>
+        <button id="trash-open-btn" class="trash-open-btn hidden" type="button" title="삭제된 노트 복구">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+          </svg>
+          <span>휴지통</span>
+          <span id="trash-count" class="trash-count">0</span>
+        </button>
+      </section>
+    </aside>
+
+    <div id="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="사이드바 너비 조절"></div>
+
+    <main id="main">
+      <header id="topbar">
+        <button id="sidebar-toggle" class="sidebar-toggle" title="사이드바 토글 (Cmd+B)" aria-label="사이드바 토글">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+            <line x1="9" y1="3" x2="9" y2="21"/>
+          </svg>
+        </button>
+        <div id="current-chapter"></div>
+        <div id="actions">
+          <button id="pause-btn" class="action-btn pause" disabled title="세션 일시정지 — 나중에 이어서" aria-label="세션 일시정지">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="6" y="4" width="4" height="16"/>
+              <rect x="14" y="4" width="4" height="16"/>
+            </svg>
+            <span>Pause</span>
+          </button>
+          <button id="quiz-btn" class="action-btn quiz" disabled title="짧은 자가확인 질문 받기">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+              <line x1="12" y1="17" x2="12.01" y2="17"/>
+              <circle cx="12" cy="12" r="10"/>
+            </svg>
+            <span>Quiz</span>
+          </button>
+          <button id="end-btn" class="action-btn end" disabled title="세션 종료 + 노트 생성">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+              <polyline points="17 21 17 13 7 13 7 21"/>
+              <polyline points="7 3 7 8 15 8"/>
+            </svg>
+            <span>End &amp; Save</span>
+          </button>
+          <button id="settings-btn" class="action-btn icon-action-btn" title="설정" aria-label="설정">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+          <button id="lookup-toggle" class="action-btn icon-action-btn lookup-toggle-btn" title="Look-up — 사이드 학습 카드 (⌘L)" aria-label="Look-up 패널 토글">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+              <line x1="15" y1="3" x2="15" y2="21"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <div id="messages-wrap" class="messages-wrap">
+        <div id="messages" class="messages">
+          <div class="placeholder">
+            <p>왼쪽에서 챕터를 골라 세션을 시작하거나,</p>
+            <p><strong>Start with suggestion</strong> 버튼으로 추천 챕터를 시작하세요.</p>
+          </div>
+        </div>
+        <button id="scroll-bottom-btn" class="scroll-bottom-btn hidden" type="button" title="맨 아래로" aria-label="맨 아래로 스크롤">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <polyline points="19 12 12 19 5 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="composer-resizer" class="composer-resizer" role="separator" aria-orientation="horizontal" aria-label="입력창 높이 조절" title="드래그하여 입력창 높이 조절 (더블클릭=리셋)"></div>
+
+      <form id="input-form" class="composer">
+        <div class="composer-input-col">
+          <textarea
+            id="input"
+            rows="3"
+            placeholder="세션을 시작하면 입력할 수 있어요"
+            disabled
+          ></textarea>
+          <div id="refine-bar" class="refine-bar hidden" role="status" aria-live="polite">
+            <span class="refine-bar-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M9 2 L10.5 6.5 L15 8 L10.5 9.5 L9 14 L7.5 9.5 L3 8 L7.5 6.5 Z"/>
+                <path d="M18 13 l1 3 l3 1 l-3 1 l-1 3 l-1 -3 l-3 -1 l3 -1 z"/>
+              </svg>
+            </span>
+            <span class="refine-bar-text">프롬프트가 다듬어졌어요</span>
+            <button type="button" id="refine-undo" class="refine-bar-undo" title="원본으로 되돌리기 (⌘Z)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="9 14 4 9 9 4"/>
+                <path d="M4 9 h11 a5 5 0 0 1 5 5 v0 a5 5 0 0 1 -5 5 h-4"/>
+              </svg>
+              <span>원본</span>
+            </button>
+          </div>
+        </div>
+        <div class="composer-btn-col">
+          <button type="button" id="mic-btn" class="mic-btn" title="음성으로 입력 (OS 받아쓰기)" aria-haspopup="dialog">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="2" width="6" height="11" rx="3"/>
+              <path d="M5 10v1a7 7 0 0 0 14 0v-1"/>
+              <line x1="12" y1="18" x2="12" y2="22"/>
+            </svg>
+            <span>음성</span>
+          </button>
+          <button type="button" id="refine-btn" class="refine-btn" disabled title="프롬프트 다듬기 (⌘J) — 보내면서 다듬으려면 ⌘⇧↵">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 2 L10.5 6.5 L15 8 L10.5 9.5 L9 14 L7.5 9.5 L3 8 L7.5 6.5 Z"/>
+              <path d="M18 13 l1 3 l3 1 l-3 1 l-1 3 l-1 -3 l-3 -1 l3 -1 z"/>
+            </svg>
+            <span>다듬기</span>
+          </button>
+          <button type="submit" id="send-btn" class="send-btn" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+            <span>Send</span>
+          </button>
+        </div>
+        <div id="mic-guide" class="mic-guide hidden" role="dialog" aria-label="음성 입력 안내"></div>
+      </form>
+
+      <div id="status-bar" class="status-bar"></div>
+    </main>
+
+    <div id="lookup-resizer" class="lookup-resizer hidden" role="separator" aria-orientation="vertical" aria-label="Look-up 패널 너비 조절"></div>
+
+    <aside id="lookup-panel" class="lookup-panel hidden" aria-hidden="true">
+      <header class="lookup-panel-header">
+        <span class="lookup-panel-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 12 m0 0 a1 1 0 0 1 2 0 a2 2 0 0 1 -4 0 a3 3 0 0 1 6 0 a4 4 0 0 1 -8 0 a5 5 0 0 1 10 0"/>
+          </svg>
+        </span>
+        <h3>Look-up</h3>
+        <button id="lookup-expand" class="lookup-panel-mini icon-btn" type="button" title="전체화면 토글" aria-label="전체화면 토글">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="15 3 21 3 21 9"/>
+            <polyline points="9 21 3 21 3 15"/>
+            <line x1="21" y1="3" x2="14" y2="10"/>
+            <line x1="3" y1="21" x2="10" y2="14"/>
+          </svg>
+        </button>
+        <button id="lookup-clear" class="lookup-panel-mini" type="button" title="모든 카드 지우기">전체 지우기</button>
+      </header>
+      <div id="lookup-panel-body-wrap" class="lookup-panel-body-wrap">
+        <div id="lookup-panel-body" class="lookup-panel-body"></div>
+        <button id="lookup-scroll-bottom-btn" class="scroll-bottom-btn hidden" type="button" title="맨 아래로" aria-label="맨 아래로 스크롤">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <polyline points="19 12 12 19 5 12"/>
+          </svg>
+        </button>
+      </div>
+      <div id="lookup-direct-resizer" class="lookup-direct-resizer" role="separator" aria-orientation="horizontal" aria-label="Look-up 입력 높이 조절" title="드래그하여 입력창 높이 조절 (더블클릭=리셋)"></div>
+      <form id="lookup-direct-form" class="lookup-direct-form">
+        <textarea id="lookup-direct-context" class="lookup-direct-context hidden" placeholder="이 키워드를 어떤 맥락에서 알고 싶은지 (선택)..." rows="2"></textarea>
+        <div class="lookup-direct-row">
+          <textarea id="lookup-direct-input" class="lookup-direct-input" autocomplete="off" placeholder="키워드/표현 입력 후 Enter…" rows="3"></textarea>
+          <div class="lookup-direct-col">
+            <button type="button" id="lookup-direct-ctx-toggle" class="lookup-direct-mini" title="문맥 추가/감추기" aria-label="문맥 추가">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+            </button>
+            <button type="button" id="lookup-direct-depth" class="lookup-direct-mini lookup-direct-depth" data-depth="medium" title="응답 깊이 (간결/중간/깊이 순환)">중간</button>
+            <button type="submit" id="lookup-direct-send" class="lookup-direct-send" title="보내기 (Enter)" aria-label="보내기">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="22" y1="2" x2="11" y2="13"/>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </form>
+    </aside>
+
+    <div id="lookup-toolbar" class="lookup-toolbar hidden" role="toolbar" aria-label="선택 텍스트 Look-up">
+      <button class="lookup-tool-btn" data-depth="concise" type="button" title="1-2문장 핵심만 (빠르게)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="12" x2="14" y2="12"/>
+          <circle cx="19" cy="12" r="1.4" fill="currentColor"/>
+        </svg>
+        <span>간결</span>
+      </button>
+      <span class="lookup-toolbar-divider" aria-hidden="true"></span>
+      <button class="lookup-tool-btn" data-depth="medium" type="button" title="정의 + 원리 + 짧은 예시">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="9" x2="20" y2="9"/>
+          <line x1="4" y1="15" x2="14" y2="15"/>
+        </svg>
+        <span>중간</span>
+      </button>
+      <span class="lookup-toolbar-divider" aria-hidden="true"></span>
+      <button class="lookup-tool-btn" data-depth="deep" type="button" title="정의·원리·예시·함정·관련 개념">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="6" x2="20" y2="6"/>
+          <line x1="4" y1="12" x2="20" y2="12"/>
+          <line x1="4" y1="18" x2="13" y2="18"/>
+        </svg>
+        <span>깊이</span>
+      </button>
+      <span class="lookup-toolbar-divider" aria-hidden="true"></span>
+      <button class="lookup-tool-btn lookup-tool-question" data-action="question" type="button" title="질문 추가해서 보내기">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/>
+          <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span>질문</span>
+      </button>
+      <span class="lookup-toolbar-divider" aria-hidden="true"></span>
+      <button class="lookup-tool-btn lookup-tool-context" data-action="context" type="button" title="이 부분이 챕터 본문에서 어디인지 (인용+요약)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="16" y1="13" x2="8" y2="13"/>
+          <line x1="16" y1="17" x2="8" y2="17"/>
+        </svg>
+        <span>문맥</span>
+      </button>
+    </div>
+
+    <div id="lookup-question-popover" class="lookup-question-popover hidden" role="dialog" aria-label="질문 추가">
+      <div class="lookup-question-keyword" id="lookup-question-keyword"></div>
+      <textarea id="lookup-question-text" class="lookup-question-text" rows="3" placeholder="이 표현에 대해 어떤 게 궁금한지 적어주세요 (예: 'WAL이랑 어떻게 다른가?')"></textarea>
+      <div class="lookup-question-actions">
+        <button type="button" id="lookup-question-cancel" class="lookup-question-cancel">취소</button>
+        <select id="lookup-question-depth" class="lookup-question-depth">
+          <option value="concise">간결</option>
+          <option value="medium" selected>중간</option>
+          <option value="deep">깊이</option>
+        </select>
+        <button type="button" id="lookup-question-submit" class="lookup-question-submit">▶ 보내기</button>
+      </div>
+    </div>
+
+    <div id="search-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal search-modal" role="dialog" aria-modal="true" aria-labelledby="search-modal-title">
+        <div class="search-input-wrap">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="search-icon">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input id="search-input" type="text" placeholder="로드맵 · 챕터 · 노트 검색…" autocomplete="off" spellcheck="false" />
+          <kbd class="search-esc-hint">ESC</kbd>
+        </div>
+        <div id="search-results" class="search-results"></div>
+        <div class="search-footer">
+          <span><kbd>↑</kbd><kbd>↓</kbd> 이동</span>
+          <span><kbd>Enter</kbd> 열기</span>
+          <span><kbd>ESC</kbd> 닫기</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="activity-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal activity-modal" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title">
+        <header class="trash-modal-header">
+          <h3 id="activity-modal-title">학습 활동 — 지난 1년</h3>
+          <button id="activity-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+        </header>
+        <div id="activity-summary" class="activity-summary"></div>
+        <div id="activity-grid-wrap" class="activity-grid-wrap">
+          <div id="activity-month-labels" class="activity-month-labels"></div>
+          <div id="activity-grid" class="activity-grid"></div>
+        </div>
+        <div class="activity-legend">
+          <span title="휴식 (0)">0</span>
+          <span class="activity-cell" data-level="0"></span>
+          <span class="activity-cell" data-level="1" title="가볍게 (1–2)"></span>
+          <span class="activity-cell" data-level="2" title="보통 (3–5)"></span>
+          <span class="activity-cell" data-level="3" title="몰입 (6–10)"></span>
+          <span class="activity-cell" data-level="4" title="집중 (11–19)"></span>
+          <span class="activity-cell" data-level="5" title="대규모 (20+)"></span>
+          <span title="대규모 (20+)">20+</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="settings-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
+        <header class="trash-modal-header">
+          <h3 id="settings-modal-title">설정</h3>
+          <button id="settings-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+        </header>
+        <div class="settings-tabs">
+          <button class="settings-tab active" data-tab="general">일반</button>
+          <button class="settings-tab" data-tab="workspaces">워크스페이스</button>
+        </div>
+
+        <div class="settings-panel" data-panel="general">
+          <div class="settings-field theme-field">
+            <label>테마</label>
+            <div class="theme-toggle" role="radiogroup" aria-label="테마 선택">
+              <button type="button" class="theme-opt" data-theme="dark" aria-checked="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+                <span>다크</span>
+              </button>
+              <button type="button" class="theme-opt" data-theme="light" aria-checked="false">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="4.5"/>
+                  <line x1="12" y1="2" x2="12" y2="4"/>
+                  <line x1="12" y1="20" x2="12" y2="22"/>
+                  <line x1="4.93" y1="4.93" x2="6.34" y2="6.34"/>
+                  <line x1="17.66" y1="17.66" x2="19.07" y2="19.07"/>
+                  <line x1="2" y1="12" x2="4" y2="12"/>
+                  <line x1="20" y1="12" x2="22" y2="12"/>
+                  <line x1="4.93" y1="19.07" x2="6.34" y2="17.66"/>
+                  <line x1="17.66" y1="6.34" x2="19.07" y2="4.93"/>
+                </svg>
+                <span>라이트</span>
+              </button>
+            </div>
+          </div>
+          <div class="settings-field motion-field">
+            <label>장식 모션</label>
+            <div class="motion-toggle" role="radiogroup" aria-label="장식 모션 선택">
+              <button type="button" class="motion-opt" data-motion="off" aria-checked="true">
+                <span>끄기</span>
+              </button>
+              <button type="button" class="motion-opt" data-motion="on" aria-checked="false">
+                <span>켜기</span>
+              </button>
+            </div>
+            <div class="settings-hint">로고·뱃지 등의 상시 애니메이션. 끄면 GPU 사용·발열·배터리 소모가 줄어듭니다. (기본: 끄기)</div>
+          </div>
+          <div id="update-banner" class="update-banner hidden" role="status">
+            <span class="update-banner-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="21 12 17 12 14 21 10 3 7 12 3 12"/>
+              </svg>
+            </span>
+            <span class="update-banner-text" id="update-banner-text">최신 버전입니다.</span>
+            <button id="update-recheck-btn" class="update-mini-btn" type="button" title="다시 확인">↻</button>
+            <a id="update-releases-link" class="update-mini-btn" href="#" title="GitHub Releases 페이지 열기">Releases</a>
+            <button id="update-install-btn" class="update-install-btn hidden" type="button">받기</button>
+          </div>
+
+          <div class="settings-field">
+            <label>Anthropic API Key</label>
+            <div class="settings-row">
+              <input id="settings-api-key" type="password" placeholder="sk-ant-..." autocomplete="off" />
+              <button id="settings-save-api-key" class="settings-save-btn" type="button">저장</button>
+            </div>
+            <div class="settings-hint" id="settings-api-key-status"></div>
+          </div>
+
+          <div class="settings-field">
+            <label>Obsidian Vault 경로</label>
+            <div class="settings-row">
+              <input id="settings-vault-path" type="text" />
+              <button id="settings-pick-vault" class="settings-save-btn" type="button">선택…</button>
+              <button id="settings-save-vault" class="settings-save-btn primary" type="button">저장</button>
+            </div>
+            <div class="settings-hint">변경 시 앱이 자동 재시작됩니다.</div>
+          </div>
+
+          <div class="settings-field">
+            <label>기본 모델</label>
+            <div class="settings-row">
+              <select id="settings-model"></select>
+              <button id="settings-save-model" class="settings-save-btn" type="button">저장</button>
+            </div>
+            <div class="settings-hint">새 세션을 시작할 때 적용됩니다.</div>
+          </div>
+        </div>
+
+        <div class="settings-panel hidden" data-panel="workspaces">
+          <div class="settings-workspace-list" id="settings-workspace-list"></div>
+
+          <button id="settings-add-workspace-btn" class="settings-add-btn" type="button">
+            ＋ 새 워크스페이스 추가
+          </button>
+
+          <div class="settings-divider"><span>iq-dev-lab 학습 자료</span></div>
+
+          <div id="curated-zone" class="curated-zone">
+            <div class="curated-target-row" id="curated-target-row">
+              <span class="curated-target-label">받을 위치:</span>
+              <code class="curated-target-path" id="curated-target-path">선택되지 않음</code>
+              <button type="button" class="curated-target-use-ws" id="curated-target-use-ws" title="현재 워크스페이스 폴더에 추가 받기 — 기존 진행이 그대로 이어집니다">📍 현재 워크스페이스</button>
+              <button type="button" class="curated-target-pick" id="curated-target-pick">선택…</button>
+            </div>
+            <!-- v0.5.55 — 위치가 현재 워크스페이스와 다를 때만 경고 표시 -->
+            <div id="curated-target-warning" class="curated-target-warning hidden" role="alert">
+              <span class="curated-target-warning-icon" aria-hidden="true">⚠️</span>
+              <span>이 위치는 현재 워크스페이스와 달라요. 새로 받는 자료는 <strong>이 폴더에만</strong> 설치되며, 기존 워크스페이스에 자동으로 합쳐지지 않습니다. 진행도(d1/d2)는 옵시디언 vault에 있어 안전하지만, 새 워크스페이스를 만들어야 정상 표시됩니다.</span>
+            </div>
+            <div id="curated-target-hint" class="curated-target-hint hidden">
+              <span class="curated-target-hint-icon" aria-hidden="true">✓</span>
+              <span>현재 워크스페이스 폴더에 받습니다 — 기존 백엔드 자료/진행도 그대로 두고 누락된 도메인만 추가됩니다.</span>
+            </div>
+
+            <!-- v0.5.52 — 진행 상태 카드를 grid 위로 이동. 활성화될 때만 보임. -->
+            <div id="curated-progress" class="curated-progress hidden">
+              <div class="curated-progress-text" id="curated-progress-text">진행 중…</div>
+              <div class="curated-progress-bar"><div class="curated-progress-fill" id="curated-progress-fill"></div></div>
+            </div>
+
+            <div class="curated-presets">
+              <div class="curated-presets-header">⚡ 빠른 시작 — 역할 프리셋</div>
+              <div class="curated-presets-grid" id="curated-presets-grid"></div>
+            </div>
+
+            <div class="curated-domains">
+              <div class="curated-domains-header">📚 도메인 골라 받기</div>
+              <div class="curated-domains-list" id="curated-domains-list"></div>
+            </div>
+          </div>
+
+          <div class="settings-divider"><span>처음부터 다시</span></div>
+
+          <button id="settings-open-wizard" class="settings-wizard-link" type="button">
+            <svg class="wizard-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 12 m0 0 a1 1 0 0 1 2 0 a2 2 0 0 1 -4 0 a3 3 0 0 1 6 0 a4 4 0 0 1 -8 0 a5 5 0 0 1 10 0"/>
+            </svg>
+            <span>초기 설정 마법사 다시 열기</span>
+          </button>
+          <div class="settings-hint" style="margin-top: 4px;">
+            워크스페이스마다 vault 안의 별도 폴더에 노트가 저장되어 섞이지 않습니다.
+            전환은 앱 재시작 후 적용됩니다.
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="add-workspace-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal add-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="add-ws-title">
+        <header class="trash-modal-header">
+          <h3 id="add-ws-title">새 워크스페이스 추가</h3>
+          <button id="add-ws-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+        </header>
+
+        <div class="settings-field">
+          <label>이름</label>
+          <input id="add-ws-name" type="text" placeholder="예: 백엔드 면접 질문" />
+        </div>
+
+        <div class="settings-field">
+          <label>방식</label>
+          <div class="radio-row">
+            <label class="radio-option">
+              <input type="radio" name="ws-source" value="git" checked />
+              <span>📥 Git 레포 URL로 클론</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="ws-source" value="dir" />
+              <span>📁 기존 디렉토리 지정</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="settings-field" id="add-ws-git-field">
+          <label>Git 레포 URL</label>
+          <input id="add-ws-git-url" type="text" placeholder="https://github.com/owner/repo" />
+          <div class="settings-hint">
+            예: <code>https://github.com/ksundong/backend-interview-question</code>.
+            기본 위치는 vault 옆 <code>iq-spiral-buddy-data/&lt;id&gt;/</code>에 클론됩니다.
+          </div>
+        </div>
+
+        <div class="settings-field hidden" id="add-ws-dir-field">
+          <label>로컬 디렉토리 경로</label>
+          <div class="settings-row">
+            <input id="add-ws-local-path" type="text" />
+            <button id="add-ws-pick-dir" class="settings-save-btn" type="button">선택…</button>
+          </div>
+        </div>
+
+        <div class="add-ws-error hidden" id="add-ws-error"></div>
+        <div class="add-ws-progress hidden" id="add-ws-progress"></div>
+
+        <div class="settings-actions">
+          <button id="add-ws-cancel" type="button">취소</button>
+          <button id="add-ws-submit" class="primary" type="button">추가</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="remove-ws-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal add-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="remove-ws-title">
+        <header class="trash-modal-header">
+          <h3 id="remove-ws-title">워크스페이스 삭제</h3>
+          <button id="remove-ws-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+        </header>
+
+        <div class="settings-hint" style="margin-bottom: 16px;">
+          <strong id="remove-ws-name"></strong>를 삭제합니다.
+        </div>
+
+        <div class="settings-field">
+          <label class="checkbox-row">
+            <input type="checkbox" id="remove-ws-del-dir" />
+            <span>학습 자료 디렉토리도 영구 삭제</span>
+          </label>
+          <div class="settings-hint" id="remove-ws-dir-path"></div>
+        </div>
+
+        <div class="settings-field">
+          <label class="checkbox-row">
+            <input type="checkbox" id="remove-ws-del-notes" />
+            <span>vault 안 노트 폴더도 같이 정리 (이름 바꿔서 보관)</span>
+          </label>
+          <div class="settings-hint" id="remove-ws-notes-path"></div>
+        </div>
+
+        <div class="add-ws-error hidden" id="remove-ws-error"></div>
+
+        <div class="settings-actions">
+          <button id="remove-ws-cancel" type="button">취소</button>
+          <button id="remove-ws-confirm" class="primary danger" type="button">삭제</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="trash-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal trash-modal" role="dialog" aria-modal="true" aria-labelledby="trash-modal-title">
+        <header class="trash-modal-header">
+          <h3 id="trash-modal-title">휴지통 — 삭제된 노트 복구</h3>
+          <button id="trash-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+        </header>
+        <div class="trash-modal-hint">
+          mtime 30일 초과 항목은 서버 시작 시 영구 삭제됨.
+        </div>
+        <ol id="trash-list" class="trash-list"></ol>
+      </div>
+    </div>
+
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
