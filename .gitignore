@@ -9,3 +9,5 @@ dist/
 coverage/
 .cache/
 pnpm-workspace.yaml
+release/
+.claude/

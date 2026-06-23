@@ -11,7 +11,7 @@
 
 ## 0. 정의
 
-- **"프로젝트"** — `iq-spiral-galaxy/spiral-buddy-blue` 저장소 및 그 파생·후속 저작물.
+- **"프로젝트"** — `iq-spiral-galaxy/spiral-buddy-white` 저장소 및 그 파생·후속 저작물.
 - **"프로젝트 소유자"** — **Donghee Han (한동희, @e9ua1)**(향후 설립될 법인으로 승계될 수 있음). 이하 "소유자".
 - **"기여(Contribution)"** — 귀하가 프로젝트에 제출(Pull Request, 패치, 이슈 첨부 코드,
   문서 등 형식 불문)한 모든 저작물 및 그 수정.
@@ -135,4 +135,4 @@
 
 *프로젝트에 기여함으로써 귀하는 위 내용을 읽고 동의함을 확인합니다.*
 
-*Spiral Buddy Blue는 [iq-spiral-galaxy](https://github.com/iq-spiral-galaxy) 패밀리의 일부입니다.*
+*Spiral Buddy White는 [iq-spiral-galaxy](https://github.com/iq-spiral-galaxy) 패밀리의 일부입니다.*

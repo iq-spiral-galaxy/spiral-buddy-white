@@ -1,7 +1,7 @@
 {
   "name": "spiral-buddy-white",
   "version": "0.1.0",
-  "description": "Spiral learning companion that bridges Claude and Obsidian. Local web app — roadmap-driven sessions, auto-structured notes, spiral revisit detection.",
+  "description": "Spiral learning companion for the study of mind & consciousness (Psyche) — \"Explain it, don't explain it away.\" Local desktop app bridging Claude and Obsidian: roadmap-driven sessions, mechanism→gap→experience notes, spiral revisit detection.",
   "type": "module",
   "main": "electron/main.cjs",
   "private": true,
@@ -46,7 +46,10 @@
     "obsidian",
     "spiral-learning",
     "learning",
-    "agent"
+    "agent",
+    "psyche",
+    "consciousness",
+    "philosophy-of-mind"
   ],
   "author": "iq",
   "license": "MIT",

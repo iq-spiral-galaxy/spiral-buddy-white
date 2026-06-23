@@ -1,4 +1,4 @@
-// Spiral Buddy — Electron main process (CommonJS)
+// Spiral Buddy White — Electron main process (CommonJS)
 //
 // 흐름:
 //  1. app.whenReady → loadConfig (userData/config.json)
@@ -76,7 +76,7 @@ process.on("uncaughtException", (err) => {
     _crashDialogShown = true;
     try {
       dialog.showErrorBox(
-        "Spiral Buddy 오류",
+        "Spiral Buddy White 오류",
         `예기치 않은 오류가 발생했어요.\n\n${msg.split("\n")[0]}\n\n자세한 내용: ${SERVER_LOG_PATH}`,
       );
     } catch {}
@@ -181,7 +181,7 @@ function migrateConfig(raw) {
       ? displayWorkspaceName(raw.roadmapRoot)
       : "기본 워크스페이스",
     roadmapRoot: raw.roadmapRoot ?? null,
-    vaultSubDir: "spiral-buddy",
+    vaultSubDir: "spiral-buddy-white",
     source: "legacy",
     categoriesOrg: raw.curatedOrg ?? "iq-psyche-lab",
   };
@@ -361,7 +361,9 @@ function uniqueId(base, taken) {
 // 고정 포트(4517)를 우선 시도하고, 점유 시 +1씩 10개까지, 그래도
 // 안 되면 기존처럼 랜덤. 같은 포트 = 같은 origin = 설정 유지.
 // (CLI 모드 기본 3737과 다른 번호라 dev 서버와 충돌 없음)
-const PREFERRED_PORT = 4517;
+// White 전용 포트 (Blue 4517 · Green 4557와 분리 — 같은 포트면 localStorage origin
+// 충돌로 테마/패널폭/일시정지 목록이 섞이고 동시 실행도 안 됨).
+const PREFERRED_PORT = 4597;
 
 function tryListen(port) {
   return new Promise((resolve) => {
@@ -409,7 +411,7 @@ async function startServerInProcess(cfg) {
   process.env.NO_OPEN = "1";
   if (ws?.roadmapRoot) process.env.SPIRAL_ROADMAP_ROOT = ws.roadmapRoot;
   if (ws?.vaultSubDir) process.env.SPIRAL_VAULT_SUBDIR = ws.vaultSubDir;
-  // categoriesOrg가 있으면 curated org를 그걸로 (iq-dev-lab 매핑용)
+  // categoriesOrg가 있으면 curated org를 그걸로 (iq-psyche-lab 매핑용)
   const curatedOrg = ws?.categoriesOrg ?? cfg.curatedOrg;
   if (curatedOrg) process.env.SPIRAL_CURATED_ORG = curatedOrg;
   if (cfg.githubToken) process.env.SPIRAL_GITHUB_TOKEN = cfg.githubToken;
@@ -459,7 +461,7 @@ function createSetupWindow() {
   setupWindow = new BrowserWindow({
     width: 600,
     height: 640,
-    title: "Spiral Buddy — 초기 설정",
+    title: "Spiral Buddy White — 초기 설정",
     backgroundColor: "#ffffff",
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
@@ -485,7 +487,7 @@ async function createMainWindow() {
     height: 900,
     minWidth: 800,
     minHeight: 600,
-    title: "Spiral Buddy",
+    title: "Spiral Buddy White",
     backgroundColor: "#ffffff",
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
@@ -511,7 +513,7 @@ async function createMainWindow() {
       buttons: ["취소", "저장 없이 종료"],
       defaultId: 0,
       cancelId: 0,
-      title: "Spiral Buddy",
+      title: "Spiral Buddy White",
       message: "진행 중인 학습 세션이 있습니다.",
       detail:
         '닫으면 지금까지의 대화가 사라집니다.\n저장하려면 메인 창의 "End & Save"를 먼저 누르세요.',
@@ -545,7 +547,7 @@ async function bootWithConfig(cfg) {
       /* ignore */
     }
     dialog.showErrorBox(
-      "Spiral Buddy — 서버 시작 실패",
+      "Spiral Buddy White — 서버 시작 실패",
       `서버를 시작할 수 없습니다.\n\n${err?.message ?? err}\n\n로그 파일: ${SERVER_LOG_PATH}`,
     );
     app.quit();
@@ -554,7 +556,7 @@ async function bootWithConfig(cfg) {
   const ready = await waitForServer(serverPort, 8000);
   if (!ready) {
     dialog.showErrorBox(
-      "Spiral Buddy — 서버 시작 실패",
+      "Spiral Buddy White — 서버 시작 실패",
       `서버가 127.0.0.1:${serverPort}에서 응답하지 않습니다.\n\n로그 파일: ${SERVER_LOG_PATH}`,
     );
     app.quit();
@@ -637,7 +639,7 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
         id: "default",
         name: wsName,
         roadmapRoot: input.roadmapRoot ?? null,
-        vaultSubDir: "spiral-buddy",
+        vaultSubDir: "spiral-buddy-white",
         source: input.source ?? "setup",
         categoriesOrg: "iq-psyche-lab",
       },
@@ -829,18 +831,18 @@ function buildInstallScript(version, logPath) {
   if (platform === "darwin") {
     const dmgName =
       arch === "arm64"
-        ? `Spiral.Buddy-${version}-arm64.dmg`
-        : `Spiral.Buddy-${version}.dmg`;
+        ? `Spiral.Buddy.White-${version}-arm64.dmg`
+        : `Spiral.Buddy.White-${version}.dmg`;
     const url = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/v${version}/${dmgName}`;
     // 모든 출력을 logPath로 — 디버깅 가능.
     // set -e는 사용 X (한 단계 실패해도 다음 시도하고 마지막에 open). 단계마다 echo로 진행 로깅.
     return `#!/bin/bash
 exec > "${logPath}" 2>&1
-echo "=== Spiral Buddy update start (v${version}) ==="
+echo "=== Spiral Buddy White update start (v${version}) ==="
 date
 
 echo "-- step 1: quitting current app"
-osascript -e 'tell application "Spiral Buddy" to quit' 2>/dev/null || true
+osascript -e 'tell application "Spiral Buddy White" to quit' 2>/dev/null || true
 sleep 2.5
 
 echo "-- step 2: downloading dmg from ${url}"
@@ -857,20 +859,20 @@ if ! hdiutil attach -nobrowse -quiet /tmp/spiral.dmg; then
 fi
 
 echo "-- step 4: replacing app in /Applications"
-rm -rf '/Applications/Spiral Buddy.app'
-if ! cp -R "/Volumes/Spiral Buddy ${version}/Spiral Buddy.app" /Applications/; then
+rm -rf '/Applications/Spiral Buddy White.app'
+if ! cp -R "/Volumes/Spiral Buddy White ${version}/Spiral Buddy White.app" /Applications/; then
   echo "ERROR: copy failed — /Applications 권한이 부족할 수 있음"
-  hdiutil detach -quiet "/Volumes/Spiral Buddy ${version}" 2>/dev/null || true
+  hdiutil detach -quiet "/Volumes/Spiral Buddy White ${version}" 2>/dev/null || true
   exit 1
 fi
 
 echo "-- step 5: unmount + cleanup"
-hdiutil detach -quiet "/Volumes/Spiral Buddy ${version}" 2>/dev/null || true
-xattr -cr '/Applications/Spiral Buddy.app' 2>/dev/null || true
+hdiutil detach -quiet "/Volumes/Spiral Buddy White ${version}" 2>/dev/null || true
+xattr -cr '/Applications/Spiral Buddy White.app' 2>/dev/null || true
 rm -f /tmp/spiral.dmg
 
 echo "-- step 6: opening updated app"
-open '/Applications/Spiral Buddy.app'
+open '/Applications/Spiral Buddy White.app'
 echo "=== done ==="
 `;
   }
@@ -1018,7 +1020,7 @@ ipcMain.handle("app:install-update", async (_e, { version }) => {
   //      — Node https 다운로드는 mark-of-the-web이 안 붙어 SmartScreen 차단 없음
   //   3. 그 후에만 앱 종료. 설치 실패는 v0.5.74 marker가 다음 부팅 때 감지.
   if (process.platform === "win32") {
-    const exeName = `Spiral.Buddy.Setup.${version}.exe`;
+    const exeName = `Spiral.Buddy.White.Setup.${version}.exe`;
     const url = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/v${version}/${exeName}`;
     const dest = path.join(os.tmpdir(), `spiral-buddy-setup-${version}.exe`);
     const log = (msg) => {
@@ -1221,7 +1223,7 @@ ipcMain.handle("settings:get", () => {
 });
 
 /**
- * 초기 setup wizard를 다시 띄움. 사용자가 처음 설치 시 iq-dev-lab 받기를
+ * 초기 setup wizard를 다시 띄움. 사용자가 처음 설치 시 iq-psyche-lab 받기를
  * 깜박했거나 다른 옵션을 다시 시도하고 싶을 때.
  * 메인 윈도우는 그대로 두고 setup window만 별도 모달처럼 띄움.
  */
@@ -1371,8 +1373,9 @@ ipcMain.handle("settings:add-workspace", async (event, args) => {
 
   const takenIds = new Set(cfg.workspaces.map((w) => w.id));
   const id = uniqueId(name, takenIds);
-  // 기본 vault sub-dir: spiral-buddy-<id> (default와 안 겹치게)
-  const vaultSubDir = id === "default" ? "spiral-buddy" : `spiral-buddy-${id}`;
+  // 기본 vault sub-dir: spiral-buddy-white-<id> (default와 안 겹치게 + Blue 노트와 분리)
+  const vaultSubDir =
+    id === "default" ? "spiral-buddy-white" : `spiral-buddy-white-${id}`;
 
   let roadmapRoot;
   if (sourceKind === "dir") {
@@ -1393,11 +1396,11 @@ ipcMain.handle("settings:add-workspace", async (event, args) => {
     if (!parsedGitUrl || parsedGitUrl.protocol !== "https:") {
       return { ok: false, error: "https git URL만 지원합니다." };
     }
-    // 기본 클론 위치: <vaultPath>/../iq-spiral-buddy-data/<id>/<repoName>
+    // 기본 클론 위치: <vaultPath>/../spiral-buddy-white-data/<id>/<repoName>
     // 또는 사용자가 parentDir 지정 가능
     const parentDir =
       args.parentDir ||
-      path.join(path.dirname(cfg.vaultPath), "iq-spiral-buddy-data", id);
+      path.join(path.dirname(cfg.vaultPath), "spiral-buddy-white-data", id);
     fs.mkdirSync(parentDir, { recursive: true });
     // repo 이름 추출
     const m = args.gitUrl.match(/\/([^/]+?)(?:\.git)?$/);
@@ -1473,7 +1476,7 @@ ipcMain.handle("settings:add-workspace", async (event, args) => {
     vaultSubDir,
     source: sourceKind === "git" ? "git-clone" : "manual-dir",
     sourceUrl: args.gitUrl ?? null,
-    // iq-dev-lab 카테고리는 자동 적용. 다른 레포면 카테고리 없음.
+    // iq-psyche-lab 카테고리는 자동 적용. 다른 레포면 카테고리 없음.
     categoriesOrg:
       args.gitUrl?.includes("iq-psyche-lab") || roadmapRoot.includes("iq-psyche-lab")
         ? "iq-psyche-lab"
@@ -1485,7 +1488,7 @@ ipcMain.handle("settings:add-workspace", async (event, args) => {
   return { ok: true, workspace: ws };
 });
 
-// ─── iq-dev-lab 38개 레포 자동 다운로드 ──────────────────────
+// ─── iq-psyche-lab 31개 레포 자동 다운로드 ──────────────────────
 
 const CURATED_ORG = "iq-psyche-lab";
 
@@ -1574,7 +1577,7 @@ function cloneRepo(parentDir, repo, depth = 1) {
 
 ipcMain.handle("setup:pick-parent-dir", async () => {
   const result = await dialog.showOpenDialog({
-    title: "iq-dev-lab을 받을 부모 디렉토리 선택",
+    title: "iq-psyche-lab을 받을 부모 디렉토리 선택",
     properties: ["openDirectory", "createDirectory"],
     defaultPath: path.join(os.homedir(), "Documents"),
     buttonLabel: "이 폴더에 받기",
@@ -1900,7 +1903,7 @@ if (!app.requestSingleInstanceLock()) {
         _crashDialogShown = true;
         try {
           dialog.showErrorBox(
-            "Spiral Buddy 시작 실패",
+            "Spiral Buddy White 시작 실패",
             `앱을 시작하지 못했어요.\n\n${msg.split("\n")[0]}\n\n자세한 내용: ${SERVER_LOG_PATH}`,
           );
         } catch {}

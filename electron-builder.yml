@@ -2,7 +2,7 @@ appId: com.iq-lab.spiral-buddy-white
 productName: Spiral Buddy White
 copyright: © 2026 iq-lab
 
-# v0.5.95 — macOS Helper 앱을 CFBundleName("Spiral Buddy Blue")에 맞춰 rename.
+# v0.5.95 — macOS Helper 앱을 CFBundleName("Spiral Buddy White")에 맞춰 rename.
 # dock 호버 이름은 CFBundleName을 읽으므로 Blue로 띄우려면 CFBundleName을
 # 바꿔야 하는데, 그러면 Electron이 Helper를 못 찾아 크래시 → 이 훅이 Helper를
 # 같은 이름으로 rename해 일치시킨다. (자세한 배경: electron/after-pack.cjs)
@@ -48,7 +48,7 @@ mac:
   hardenedRuntime: false
   gatekeeperAssess: false
   # dock 호버 이름은 CFBundleName을 읽는다(CFBundleDisplayName/.app 파일명 아님 —
-  # v0.5.92↔v0.5.94 대조로 확정). 따라서 "Spiral Buddy Blue"로 띄우려면
+  # v0.5.92↔v0.5.94 대조로 확정). 따라서 "Spiral Buddy White"로 띄우려면
   # CFBundleName을 바꿔야 한다.
   #
   # ⚠ CFBundleName을 바꾸면 Electron이 Helper를 "<CFBundleName> Helper.app"로
@@ -58,10 +58,10 @@ mac:
   # productName/.app 파일명은 그대로라 자동 업데이트는 유지된다.
   extendInfo:
     CFBundleName: Spiral Buddy White
-    CFBundleDisplayName: Spiral Buddy Blue
+    CFBundleDisplayName: Spiral Buddy White
 
 dmg:
-  title: Spiral Buddy ${version}
+  title: Spiral Buddy White ${version}
   writeUpdateInfo: false
 
 win:
@@ -77,7 +77,7 @@ nsis:
   allowToChangeInstallationDirectory: true
   createDesktopShortcut: true
   # v0.5.92 — 시작메뉴/바탕화면 바로가기 표시명 (설치 경로는 불변)
-  shortcutName: Spiral Buddy Blue
+  shortcutName: Spiral Buddy White
 
 linux:
   target:
@@ -87,9 +87,8 @@ linux:
   category: Education
 
 # GitHub Releases 발행 (CI에서 환경변수 GH_TOKEN 사용)
-# v0.5.87 — iq-spiral-galaxy/spiral-buddy-blue로 이전
 publish:
   provider: github
   owner: iq-spiral-galaxy
-  repo: spiral-buddy-blue
+  repo: spiral-buddy-white
   releaseType: release

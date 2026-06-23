@@ -23,19 +23,19 @@ function assert(cond: unknown, msg: string) {
 
 // ─── 1. parseCuratedId
 console.log("\n[1] parseCuratedId");
-const p1 = parseCuratedId("curated:iq-dev-lab/redis-deep-dive");
+const p1 = parseCuratedId("curated:iq-psyche-lab/perception-distilled");
 assert(
-  p1?.org === "iq-dev-lab" && p1.repoName === "redis-deep-dive" && p1.subPath === "",
+  p1?.org === "iq-psyche-lab" && p1.repoName === "perception-distilled" && p1.subPath === "",
   "단순 형식 파싱",
 );
 
 const p2 = parseCuratedId(
-  "curated:iq-dev-lab/spring-deep-dive/ioc-container",
+  "curated:iq-psyche-lab/memory-distilled/the-binding-problem",
 );
 assert(
-  p2?.org === "iq-dev-lab" &&
-    p2.repoName === "spring-deep-dive" &&
-    p2.subPath === "ioc-container",
+  p2?.org === "iq-psyche-lab" &&
+    p2.repoName === "memory-distilled" &&
+    p2.subPath === "the-binding-problem",
   "sub-path 포함 파싱",
 );
 
@@ -53,7 +53,7 @@ await fs.rm(testOrgDir, { recursive: true, force: true });
 await fs.mkdir(testOrgDir, { recursive: true });
 
 // repo 1: 단순 (.md 파일들 직접)
-const repo1Dir = path.join(testOrgDir, "redis-deep-dive");
+const repo1Dir = path.join(testOrgDir, "perception-distilled");
 await fs.mkdir(repo1Dir, { recursive: true });
 await fs.writeFile(path.join(repo1Dir, "README.md"), "# Redis");
 await fs.writeFile(path.join(repo1Dir, "01-intro.md"), "# Intro");
@@ -61,10 +61,10 @@ await fs.writeFile(path.join(repo1Dir, "02-data.md"), "# Data");
 await fs.writeFile(path.join(repo1Dir, "03-memory.md"), "# Memory");
 
 // repo 2: sub-roadmap 있는 경우
-const repo2Dir = path.join(testOrgDir, "spring-deep-dive");
+const repo2Dir = path.join(testOrgDir, "memory-distilled");
 await fs.mkdir(repo2Dir, { recursive: true });
 await fs.writeFile(path.join(repo2Dir, "README.md"), "# Spring");
-const subDir1 = path.join(repo2Dir, "ioc-container");
+const subDir1 = path.join(repo2Dir, "the-binding-problem");
 await fs.mkdir(subDir1, { recursive: true });
 await fs.writeFile(path.join(subDir1, "01-bean.md"), "# Bean");
 await fs.writeFile(path.join(subDir1, "02-context.md"), "# Context");
@@ -97,16 +97,16 @@ console.log(
 assert(roadmaps.length === 3, `3개 발견 (실제: ${roadmaps.length})`);
 const ids = roadmaps.map((r) => r.id).sort();
 assert(
-  ids.includes(`curated:${TEST_ORG}/redis-deep-dive`),
-  "단순 레포: curated:test-org/redis-deep-dive",
+  ids.includes(`curated:${TEST_ORG}/perception-distilled`),
+  "단순 레포: curated:test-org/perception-distilled",
 );
 assert(
-  ids.includes(`curated:${TEST_ORG}/spring-deep-dive/ioc-container`),
-  "sub-roadmap: curated:test-org/spring-deep-dive/ioc-container",
+  ids.includes(`curated:${TEST_ORG}/memory-distilled/the-binding-problem`),
+  "sub-roadmap: curated:test-org/memory-distilled/the-binding-problem",
 );
 assert(
-  ids.includes(`curated:${TEST_ORG}/spring-deep-dive/transaction-mvcc`),
-  "sub-roadmap: curated:test-org/spring-deep-dive/transaction-mvcc",
+  ids.includes(`curated:${TEST_ORG}/memory-distilled/transaction-mvcc`),
+  "sub-roadmap: curated:test-org/memory-distilled/transaction-mvcc",
 );
 assert(
   !ids.some((id) => id.includes("not-a-roadmap")),
@@ -122,8 +122,8 @@ console.log("\n[3] listInstalledRepoNames");
 const installed = await listInstalledRepoNames(TEST_ORG);
 console.log(installed);
 assert(installed.length === 4, "디스크에 있는 4개 디렉토리 인식");
-assert(installed.includes("redis-deep-dive"), "redis-deep-dive 포함");
-assert(installed.includes("spring-deep-dive"), "spring-deep-dive 포함");
+assert(installed.includes("perception-distilled"), "perception-distilled 포함");
+assert(installed.includes("memory-distilled"), "memory-distilled 포함");
 
 // ─── 4. parseCuratedId 라운드트립
 console.log("\n[4] roadmap id → parseCuratedId 라운드트립");
@@ -131,13 +131,13 @@ for (const r of roadmaps) {
   const parsed = parseCuratedId(r.id);
   assert(parsed !== null, `${r.id} 파싱 가능`);
   assert(parsed?.org === TEST_ORG, `org 정확: ${parsed?.org}`);
-  if (r.id === `curated:${TEST_ORG}/redis-deep-dive`) {
-    assert(parsed?.repoName === "redis-deep-dive" && parsed?.subPath === "", "단순 형식 round-trip");
+  if (r.id === `curated:${TEST_ORG}/perception-distilled`) {
+    assert(parsed?.repoName === "perception-distilled" && parsed?.subPath === "", "단순 형식 round-trip");
   }
-  if (r.id === `curated:${TEST_ORG}/spring-deep-dive/ioc-container`) {
+  if (r.id === `curated:${TEST_ORG}/memory-distilled/the-binding-problem`) {
     assert(
-      parsed?.repoName === "spring-deep-dive" &&
-        parsed?.subPath === "ioc-container",
+      parsed?.repoName === "memory-distilled" &&
+        parsed?.subPath === "the-binding-problem",
       "sub-path round-trip",
     );
   }

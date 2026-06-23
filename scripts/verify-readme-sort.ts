@@ -3,7 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import { discoverRoadmaps } from "../src/roadmap.js";
 
-const ROOT = process.argv[2] ?? path.join(os.homedir(), "iq-lab", "iq-dev-lab");
+const ROOT = process.argv[2] ?? path.join(os.homedir(), "iq-lab", "iq-psyche-lab");
 
 console.log(`▶ ROOT: ${ROOT}\n`);
 

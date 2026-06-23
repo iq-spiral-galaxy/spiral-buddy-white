@@ -23,10 +23,10 @@ function assert(cond: unknown, msg: string) {
 console.log("\n[1] isMetaRepo");
 assert(isMetaRepo(".github"), ".github → meta");
 assert(isMetaRepo(".github-private"), ".github-private → meta");
-assert(isMetaRepo("iq-dev-lab.github.io"), "iq-dev-lab.github.io → meta");
+assert(isMetaRepo("iq-psyche-lab.github.io"), "iq-psyche-lab.github.io → meta");
 assert(isMetaRepo("anything.github.io"), "*.github.io → meta");
-assert(!isMetaRepo("redis-deep-dive"), "redis-deep-dive → 학습용");
-assert(!isMetaRepo("spring-core-deep-dive"), "spring-core-deep-dive → 학습용");
+assert(!isMetaRepo("perception-distilled"), "perception-distilled → 학습용");
+assert(!isMetaRepo("learning-decision-distilled"), "learning-decision-distilled → 학습용");
 assert(!isMetaRepo("github-actions"), "github-actions (이름에 github 들어가도) → 학습용");
 
 // ─── 2. listCuratedRepos가 meta 자동 제외하는지 (가짜 캐시)
@@ -62,8 +62,8 @@ const fake = {
         size: 5000,
       },
       {
-        full_name: "test-org/redis-deep-dive",
-        name: "redis-deep-dive",
+        full_name: "test-org/perception-distilled",
+        name: "perception-distilled",
         description: "Redis 깊이",
         language: "Markdown",
         stargazers_count: 12,
@@ -81,14 +81,14 @@ await fs.writeFile(META, JSON.stringify(fake, null, 2));
 const repos = await listCuratedRepos({ org: "test-org" });
 console.log(`반환된 레포: ${repos.map((r) => r.name).join(", ")}`);
 assert(repos.length === 1, `meta 2개 제외, 학습용 1개만 남음 (실제: ${repos.length})`);
-assert(repos[0]?.name === "redis-deep-dive", "redis-deep-dive만 남음");
+assert(repos[0]?.name === "perception-distilled", "perception-distilled만 남음");
 
 await fs.rm(META, { force: true });
 
-// ─── 3. iq-dev-lab 카테고리 매핑 로딩
-console.log("\n[3] getOrgCategories('iq-dev-lab')");
-const cats = await getOrgCategories("iq-dev-lab");
-assert(cats !== null, "iq-dev-lab 카테고리 정의 존재");
+// ─── 3. iq-psyche-lab 카테고리 매핑 로딩
+console.log("\n[3] getOrgCategories('iq-psyche-lab')");
+const cats = await getOrgCategories("iq-psyche-lab");
+assert(cats !== null, "iq-psyche-lab 카테고리 정의 존재");
 assert(cats!.length === 9, `9개 카테고리 (실제: ${cats!.length})`);
 const catNames = cats!.map((c) => c.name);
 console.log("카테고리:", catNames);
@@ -105,11 +105,11 @@ console.log("\n[4] 정의 안 된 org → fallback");
 const otherOrg = await getOrgCategories("unknown-org");
 assert(otherOrg === null, "정의 안 된 org → null");
 
-// ─── 5. groupReposByCategory - iq-dev-lab
+// ─── 5. groupReposByCategory - iq-psyche-lab
 console.log("\n[5] groupReposByCategory");
 const sampleRepos = [
-  { name: "redis-deep-dive", stars: 1 },
-  { name: "spring-core-deep-dive", stars: 2 },
+  { name: "perception-distilled", stars: 1 },
+  { name: "learning-decision-distilled", stars: 2 },
   { name: "object", stars: 3 },
   { name: "kafka-deep-dive", stars: 4 },
   { name: "spring-mvc-deep-dive", stars: 5 },
@@ -117,7 +117,7 @@ const sampleRepos = [
   { name: "unknown-repo-xyz", stars: 7 }, // 매핑 없음 → Other
 ];
 
-const groups = await groupReposByCategory("iq-dev-lab", sampleRepos);
+const groups = await groupReposByCategory("iq-psyche-lab", sampleRepos);
 console.log(
   "결과:",
   JSON.stringify(

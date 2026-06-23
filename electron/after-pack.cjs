@@ -1,6 +1,6 @@
 // electron-builder afterPack hook — macOS Helper 앱을 CFBundleName에 맞게 rename.
 //
-// v0.5.95 — dock 호버 이름을 "Spiral Buddy Blue"로 띄우기 위한 핵심 조각.
+// v0.5.95 — dock 호버 이름을 "Spiral Buddy White"로 띄우기 위한 핵심 조각.
 //
 // 배경 (실측으로 확정):
 // - macOS dock 툴팁은 CFBundleName을 읽는다 (CFBundleDisplayName/.app 파일명 X).
@@ -8,12 +8,12 @@
 //   Buddy"로 바뀐 대조가 증거.
 // - 그런데 Electron 메인 프로세스는 CFBundleName으로 Helper 앱 이름
 //   (`<CFBundleName> Helper.app`)을 유추해 찾는다. 그래서 CFBundleName을
-//   "Spiral Buddy Blue"로 두면 "Spiral Buddy Blue Helper.app"을 찾는데,
+//   "Spiral Buddy White"로 두면 "Spiral Buddy White Helper.app"을 찾는데,
 //   electron-builder는 Helper를 productName 기준 "Spiral Buddy Helper.app"로
 //   패키징 → 이름 불일치 → "Unable to find helper app" FATAL(크래시).
 //
-// 해법: extendInfo로 CFBundleName="Spiral Buddy Blue"를 설정하고, 이 훅에서
-// Helper 앱 4종(+executable+Info.plist)을 "Spiral Buddy Blue Helper*"로 rename해
+// 해법: extendInfo로 CFBundleName="Spiral Buddy White"를 설정하고, 이 훅에서
+// Helper 앱 4종(+executable+Info.plist)을 "Spiral Buddy White Helper*"로 rename해
 // CFBundleName과 일치시킨다. → dock에 Blue 표시 + 크래시 없음.
 //
 // 재서명하지 않는다(중요): 린커 서명은 Mach-O에 내장되어 파일명/Info.plist
@@ -57,7 +57,7 @@ exports.default = async function afterPack(context) {
   let renamed = 0;
   for (const sfx of suffixes) {
     const oldName = `${productFilename} Helper${sfx}`; // "Spiral Buddy Helper (GPU)"
-    const newName = `${bundleName} Helper${sfx}`; //      "Spiral Buddy Blue Helper (GPU)"
+    const newName = `${bundleName} Helper${sfx}`; //      "Spiral Buddy White Helper (GPU)"
     const oldApp = path.join(fw, `${oldName}.app`);
     const newApp = path.join(fw, `${newName}.app`);
     if (!fs.existsSync(oldApp)) continue;

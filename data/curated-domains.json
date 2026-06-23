@@ -1,319 +1,177 @@
 {
-  "iq-dev-lab": {
+  "iq-psyche-lab": {
     "rolePresets": [
       {
-        "id": "backend",
-        "name": "백엔드 개발자",
-        "emoji": "🔧",
-        "subtitle": "Foundations · Languages · Backend · Data Eng",
-        "domains": ["foundations", "languages", "backend", "data-engineering"],
-        "color": "#2563eb",
+        "id": "foundations-first",
+        "name": "마음의 언어부터",
+        "emoji": "📖",
+        "subtitle": "Layer 0 — 의식 연구의 모국어",
+        "domains": ["language-of-mind"],
+        "color": "#64748b",
         "recommended": true
       },
       {
-        "id": "frontend",
-        "name": "프론트엔드 개발자",
-        "emoji": "🌐",
-        "subtitle": "Foundations · Languages · Frontend",
-        "domains": ["foundations", "languages", "frontend"],
-        "color": "#0891b2"
+        "id": "substrate-to-cognition",
+        "name": "신경 → 인지",
+        "emoji": "💭",
+        "subtitle": "Language · Neural Substrate · Cognition",
+        "domains": ["language-of-mind", "neural-substrate", "cognition"],
+        "color": "#ec4899"
       },
       {
-        "id": "mobile",
-        "name": "모바일 개발자",
-        "emoji": "📱",
-        "subtitle": "Foundations · Languages · Android · iOS · Cross Platform",
-        "domains": ["foundations", "languages", "android", "ios", "cross-platform"],
-        "color": "#16a34a"
+        "id": "consciousness-self",
+        "name": "의식·자아 탐구",
+        "emoji": "🌌",
+        "subtitle": "Language · Consciousness · The Self",
+        "domains": ["language-of-mind", "consciousness", "the-self"],
+        "color": "#6366f1"
       },
       {
-        "id": "fullstack",
-        "name": "풀스택 · CS 깊게",
+        "id": "all",
+        "name": "전체 — 물질에서 경험까지",
         "emoji": "🧬",
-        "subtitle": "모든 도메인 · Synthesis까지",
-        "domains": ["foundations", "languages", "backend", "data-engineering", "frontend", "android", "ios", "cross-platform", "synthesis"],
-        "color": "#7c3aed",
+        "subtitle": "7개 레이어 전부 · Synthesis까지",
+        "domains": [
+          "language-of-mind",
+          "neural-substrate",
+          "cognition",
+          "computational-mind",
+          "consciousness",
+          "the-self",
+          "synthesis"
+        ],
+        "color": "#8b5cf6",
         "heavy": true
       }
     ],
     "domains": [
       {
-        "id": "foundations",
-        "name": "Foundations",
-        "emoji": "🪨",
-        "subtitle": "모든 것의 바닥",
-        "color": "#8d6e63",
+        "id": "language-of-mind",
+        "name": "Language of Mind",
+        "emoji": "📖",
+        "subtitle": "Layer 0 — 의식 연구의 모국어",
+        "color": "#64748b",
         "order": 1,
         "recommended": true,
         "categories": [
           {
-            "name": "Foundations",
-            "emoji": "🪨",
-            "color": "#8d6e63",
+            "name": "Language of Mind",
+            "emoji": "📖",
+            "color": "#64748b",
             "repos": [
-              "computer-architecture-deep-dive",
-              "compiler-deep-dive",
-              "cryptography-deep-dive",
-              "distributed-systems-theory-deep-dive",
-              "gpu-graphics-deep-dive"
+              "mind-body-map-distilled",
+              "levels-of-explanation-distilled",
+              "computation-representation-distilled",
+              "information-prediction-distilled",
+              "first-person-methods-distilled"
             ]
           }
         ]
       },
       {
-        "id": "languages",
-        "name": "Languages & Runtimes",
-        "emoji": "🧱",
-        "subtitle": "티어에 안 묶이는 언어",
-        "color": "#dea584",
-        "order": 8,
-        "recommended": true,
-        "categories": [
-          {
-            "name": "Languages & Runtimes",
-            "emoji": "🧱",
-            "color": "#dea584",
-            "repos": [
-              "rust-deep-dive",
-              "go-deep-dive"
-            ]
-          }
-        ]
-      },
-      {
-        "id": "backend",
-        "name": "Backend",
-        "emoji": "🔧",
-        "subtitle": "서버 사이드의 본질",
-        "color": "#2563eb",
-        "order": 3,
-        "categories": [
-          {
-            "name": "Java Core",
-            "emoji": "☕",
-            "color": "#b8860b",
-            "repos": [
-              "modern-java-in-action",
-              "java-api-reference",
-              "java-design-patterns",
-              "unit-testing",
-              "java-concurrency-deep-dive",
-              "jvm-deep-dive"
-            ]
-          },
-          {
-            "name": "Spring Ecosystem",
-            "emoji": "🍃",
-            "color": "#6db33f",
-            "repos": [
-              "spring-core-deep-dive",
-              "spring-data-transaction",
-              "spring-boot-internals",
-              "spring-mvc-deep-dive",
-              "spring-security-deep-dive",
-              "spring-batch-deep-dive",
-              "spring-cloud-deep-dive",
-              "spring-webflux-deep-dive"
-            ]
-          },
-          {
-            "name": "Architecture & Design",
-            "emoji": "🏛️",
-            "color": "#7b68ee",
-            "repos": [
-              "architecture-patterns-deep-dive",
-              "ddd-deep-dive",
-              "cqrs-event-sourcing-deep-dive",
-              "msa-deep-dive",
-              "system-design-deep-dive"
-            ]
-          },
-          {
-            "name": "Infrastructure & DevOps",
-            "emoji": "🖥️",
-            "color": "#2496ed",
-            "repos": [
-              "linux-for-backend-deep-dive",
-              "network-deep-dive",
-              "git-in-depth",
-              "docker-deep-dive",
-              "kubernetes-deep-dive",
-              "observability-deep-dive",
-              "cicd-deep-dive",
-              "iac-deep-dive",
-              "service-mesh-deep-dive"
-            ]
-          },
-          {
-            "name": "Database",
-            "emoji": "🗄️",
-            "color": "#336791",
-            "repos": [
-              "database-internals",
-              "mysql-deep-dive",
-              "postgresql-deep-dive",
-              "redis-deep-dive",
-              "elasticsearch-deep-dive",
-              "db-migration-deep-dive"
-            ]
-          },
-          {
-            "name": "Messaging & Streaming",
-            "emoji": "📨",
-            "color": "#ff6600",
-            "repos": [
-              "kafka-deep-dive",
-              "rabbitmq-deep-dive"
-            ]
-          },
-          {
-            "name": "API & Communication",
-            "emoji": "🔌",
-            "color": "#244c5a",
-            "repos": [
-              "grpc-deep-dive"
-            ]
-          },
-          {
-            "name": "Security Engineering",
-            "emoji": "🔐",
-            "color": "#c0392b",
-            "repos": [
-              "security-engineering-deep-dive"
-            ]
-          },
-          {
-            "name": "Performance & Quality",
-            "emoji": "⚡",
-            "color": "#e67e22",
-            "repos": [
-              "performance-testing-deep-dive"
-            ]
-          }
-        ]
-      },
-      {
-        "id": "data-engineering",
-        "name": "Data Engineering",
-        "emoji": "📊",
-        "subtitle": "스트림 · 컬럼 · 분산 데이터",
-        "color": "#e25a1c",
-        "order": 7,
-        "categories": [
-          {
-            "name": "Data Engineering",
-            "emoji": "📊",
-            "color": "#e25a1c",
-            "repos": [
-              "spark-internals-deep-dive",
-              "stream-processing-deep-dive",
-              "columnar-storage-format-deep-dive"
-            ]
-          }
-        ]
-      },
-      {
-        "id": "frontend",
-        "name": "Frontend",
-        "emoji": "🌐",
-        "subtitle": "클라이언트의 본질",
-        "color": "#0891b2",
+        "id": "neural-substrate",
+        "name": "Neural Substrate",
+        "emoji": "⚡",
+        "subtitle": "Layer 1 — 마음의 물리적 기반",
+        "color": "#e11d48",
         "order": 2,
         "categories": [
           {
-            "name": "Web Platform & Engine",
-            "emoji": "🌐",
-            "color": "#f7df1e",
+            "name": "Neural Substrate",
+            "emoji": "⚡",
+            "color": "#e11d48",
             "repos": [
-              "browser-rendering-deep-dive",
-              "v8-engine-deep-dive",
-              "event-loop-async-deep-dive",
-              "web-apis-wasm-deep-dive"
-            ]
-          },
-          {
-            "name": "Web Language & Framework",
-            "emoji": "⚛️",
-            "color": "#61dafb",
-            "repos": [
-              "javascript-deep-dive",
-              "typescript-type-system-deep-dive",
-              "react-internals-deep-dive",
-              "frontend-state-management-deep-dive",
-              "rendering-strategy-deep-dive",
-              "css-engine-layout-deep-dive",
-              "frontend-build-tools-deep-dive",
-              "web-performance-deep-dive",
-              "realtime-client-networking-deep-dive"
+              "neurons-neural-codes-distilled",
+              "brain-architecture-distilled",
+              "plasticity-learning-distilled",
+              "neuromodulation-arousal-distilled"
             ]
           }
         ]
       },
       {
-        "id": "android",
-        "name": "Android",
-        "emoji": "🤖",
-        "subtitle": "온디바이스의 본질",
-        "color": "#3ddc84",
+        "id": "cognition",
+        "name": "Cognition",
+        "emoji": "💭",
+        "subtitle": "Layer 2 — 마음의 알고리즘",
+        "color": "#ec4899",
+        "order": 3,
+        "recommended": true,
+        "categories": [
+          {
+            "name": "Cognition",
+            "emoji": "💭",
+            "color": "#ec4899",
+            "repos": [
+              "perception-distilled",
+              "attention-working-memory-distilled",
+              "memory-distilled",
+              "learning-decision-distilled",
+              "language-concepts-distilled",
+              "emotion-motivation-distilled"
+            ]
+          }
+        ]
+      },
+      {
+        "id": "computational-mind",
+        "name": "Computational Mind",
+        "emoji": "🧩",
+        "subtitle": "Layer 3 — 계산으로서의 마음",
+        "color": "#a855f7",
         "order": 4,
         "categories": [
           {
-            "name": "Android",
-            "emoji": "🤖",
-            "color": "#3ddc84",
+            "name": "Computational Mind",
+            "emoji": "🧩",
+            "color": "#a855f7",
             "repos": [
-              "android-runtime-deep-dive",
-              "android-framework-internals-deep-dive",
-              "kotlin-deep-dive",
-              "jetpack-compose-internals-deep-dive",
-              "android-architecture-deep-dive",
-              "android-performance-deep-dive",
-              "local-first-sync-deep-dive",
-              "android-build-system-deep-dive"
+              "computational-mind-distilled",
+              "brains-vs-networks-distilled",
+              "embodied-mind-distilled"
             ]
           }
         ]
       },
       {
-        "id": "ios",
-        "name": "iOS",
-        "emoji": "🍎",
-        "subtitle": "Apple 플랫폼의 본질",
-        "color": "#9ca3af",
+        "id": "consciousness",
+        "name": "Consciousness",
+        "emoji": "🌌",
+        "subtitle": "Layer 4 — 환원이 가장 거세게 저항하는 곳",
+        "color": "#6366f1",
         "order": 5,
+        "recommended": true,
         "categories": [
           {
-            "name": "iOS",
-            "emoji": "🍎",
-            "color": "#9ca3af",
+            "name": "Consciousness",
+            "emoji": "🌌",
+            "color": "#6366f1",
             "repos": [
-              "swift-deep-dive",
-              "objc-runtime-deep-dive",
-              "ios-lifecycle-runloop-deep-dive",
-              "swiftui-internals-deep-dive",
-              "uikit-core-animation-deep-dive",
-              "swift-concurrency-deep-dive",
-              "ios-performance-deep-dive"
+              "hard-problem-distilled",
+              "ncc-distilled",
+              "theories-of-consciousness-distilled",
+              "altered-states-distilled"
             ]
           }
         ]
       },
       {
-        "id": "cross-platform",
-        "name": "Cross Platform",
-        "emoji": "🔀",
-        "subtitle": "한 코드, 여러 플랫폼",
-        "color": "#02569b",
+        "id": "the-self",
+        "name": "The Self",
+        "emoji": "🪞",
+        "subtitle": "Layer 5 — 1인칭의 출현",
+        "color": "#f472b6",
         "order": 6,
         "categories": [
           {
-            "name": "Cross Platform",
-            "emoji": "🔀",
-            "color": "#02569b",
+            "name": "The Self",
+            "emoji": "🪞",
+            "color": "#f472b6",
             "repos": [
-              "react-native-deep-dive",
-              "flutter-deep-dive",
-              "kotlin-multiplatform-deep-dive"
+              "self-model-distilled",
+              "free-will-agency-distilled",
+              "other-minds-distilled",
+              "meaning-mortality-distilled"
             ]
           }
         ]
@@ -322,23 +180,20 @@
         "id": "synthesis",
         "name": "Synthesis",
         "emoji": "🧬",
-        "subtitle": "플랫폼을 가로지르는 본질",
-        "hint": "다른 도메인을 받은 후에 의미가 큽니다 — 이 연구소의 핵심 무기",
-        "color": "#7b1fa2",
-        "order": 99,
-        "lastRecommended": true,
+        "subtitle": "Layer 6 — 모든 레이어를 가로지르는 원리",
+        "color": "#8b5cf6",
+        "order": 7,
         "categories": [
           {
             "name": "Synthesis",
             "emoji": "🧬",
-            "color": "#7b1fa2",
+            "color": "#8b5cf6",
             "repos": [
-              "concurrency-models-compared",
-              "memory-management-compared",
-              "compilation-strategies-compared",
-              "rendering-pipelines-compared",
-              "reactivity-state-compared",
-              "caching-memory-hierarchy-compared"
+              "representation-everywhere",
+              "prediction-everywhere",
+              "binding-integration-everywhere",
+              "strange-loop-everywhere",
+              "mind-emergence-distilled"
             ]
           }
         ]

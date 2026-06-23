@@ -9,46 +9,51 @@ Output PLAIN MARKDOWN — NOT JSON. Do not wrap the note in a JSON object, and d
 
 Start with ONE tags line (3-6 topical tags, comma-separated, no '#'), then a blank line:
 
-TAGS: redis-memory, cow-semantics, fork-internals
+TAGS: qualia, predictive-coding, binding-problem
 
 Then the note body, using this exact structure with these EXACT headings (in this order):
 
 ## 한 줄 요약
 (2-3 lines max — this section also serves as the note summary)
 
-## 핵심 개념
-(bullet list of the core concepts the learner engaged with this session)
+## 메커니즘 (3인칭)
+(how the phenomenon actually works — the neural / cognitive / computational process the learner engaged with. State which level of explanation it's at (Marr: 계산 / 알고리즘 / 구현). This is the "어떻게 작동하나", in the third person.)
 
-## 직관 / 비유
-(the analogies or mental models that landed for the learner — pulled from the actual conversation)
+## 증거 / 실험
+(the concrete grounding discussed — experiments, lesions, psychophysics, illusions, computational models. What evidence supports or tests the mechanism? Code/pseudocode in fenced blocks if any.)
 
-## 짚고 넘어간 예제
-(concrete examples discussed — code snippets if any, formatted in fenced blocks)
+## 설명적 간극
+(where the third-person mechanism stops explaining the first-person experience — marked honestly, not dissolved. "이 메커니즘이 다 맞아도 그래서 그 느낌은 어디서 나오나." This is the signature Psyche section; if no gap genuinely surfaced this session, say so plainly rather than inventing one.)
+
+## 1인칭 경험
+(the phenomenology — 당사자에겐 무엇이 어떻게 느껴지나. The experience the mechanism was a story about. Include the analogies / mental models that landed for the learner.)
 
 ## 헷갈렸던 / 확인이 필요한 지점
-(things the learner got wrong, hesitated on, or asked twice — be specific, this is the most valuable section)
+(things the learner got wrong, hesitated on, or asked twice — including intuition traps they fell into (homunculus, Cartesian theater, brain-as-agent). Be specific; this is the entry point for the next spiral.)
 
 ## 이전 학습과의 연결
-(how this builds on or connects to prior spiral-buddy notes — reference them as [[note-title]] if relevant)
+(how this builds on or connects to prior spiral-buddy notes — reference them as [[note-title]] if relevant. Note especially any recurring cross-cutting principle: 표상 · 예측 · 통합 · 자기참조 · 체화 · 창발.)
 
 ## 다음에 볼 것
-(specific, actionable next steps — what to revisit, what to push deeper, what blocks this unblocks)
+(specific, actionable next steps — what to revisit, what to push deeper, what falsifiable prediction to test next, what this unblocks)
 
 Rules:
 - Output everything as real markdown directly — NEVER as a JSON string, never escaped, never wrapped in fences. Code examples go in normal triple-backtick fenced blocks inside the relevant section.
 - Write in the SAME LANGUAGE as the conversation (likely Korean).
 - Be ruthlessly concrete. Quote the learner's own framings when possible.
-- Don't fabricate content that wasn't in the conversation.
+- Don't fabricate content that wasn't in the conversation. Never manufacture an explanatory gap or evidence that didn't come up.
 - If a section has nothing real to put in it, write a single italicized line like "_이번 세션에서 다루지 않음._".
-- Tags should reflect topic, not meta ("redis-memory", "cow-semantics", not "learning", "study").
+- Tags should reflect topic, not meta ("predictive-coding", "binding-problem", "qualia", not "learning", "study").
+- If the session substantially engaged one of the recurring cross-cutting principles, ALSO include it as a tag: "representation", "prediction", "binding", "self-reference", "embodiment", "emergence". These power cross-layer recall in later sessions.
 - The "## 한 줄 요약" section doubles as the note summary. Do NOT start it with the chapter number (write "Fixtures & SetUp 첫 스파이럴…" not "05. Fixtures & SetUp 첫 스파이럴…"). The chapter title is recorded separately.`;
 
 /** 8섹션 헤딩 — save_note 검증/보충 시 사용 */
 export const REQUIRED_SECTIONS = [
   "한 줄 요약",
-  "핵심 개념",
-  "직관 / 비유",
-  "짚고 넘어간 예제",
+  "메커니즘 (3인칭)",
+  "증거 / 실험",
+  "설명적 간극",
+  "1인칭 경험",
   "헷갈렸던 / 확인이 필요한 지점",
   "이전 학습과의 연결",
   "다음에 볼 것",

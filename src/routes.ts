@@ -69,7 +69,8 @@ export function createApi(config: Config) {
   // 헬퍼
   // ─────────────────────────────────────────────────────
 
-  const vaultSubDir = process.env.SPIRAL_VAULT_SUBDIR?.trim() || "spiral-buddy";
+  const vaultSubDir =
+    process.env.SPIRAL_VAULT_SUBDIR?.trim() || "spiral-buddy-white";
   function obsidianUri(fileNameOrPath: string): string | null {
     if (!config.vaultName || !config.vaultPath) return null;
     const absPath = path.isAbsolute(fileNameOrPath)
@@ -940,13 +941,13 @@ export function createApi(config: Config) {
         "한국어로, 단정적인 정의 위주.",
       medium:
         "사용자가 학습 대화 중 모르는 개념을 좀 더 알고 싶어한다. " +
-        "2-3 문단으로 정의 + 핵심 동작 원리 + 짧은 예시 한 개. " +
+        "2-3 문단으로 정의 + 핵심 메커니즘 + 짧은 사례나 실험 한 개. " +
         "마크다운 사용 가능. 한국어로. 길어지지 말 것.",
       deep:
-        "사용자가 학습 대화 중 모르는 개념을 깊이 있게 알고 싶어한다. " +
+        "사용자가 학습 대화 중 모르는 개념(마음·뇌·의식 용어)을 깊이 있게 알고 싶어한다. " +
         "다음 구조로 마크다운 답변:\n" +
-        "## 한 줄 정의\n## 동작 원리\n## 코드 예시\n## 흔한 함정\n## 관련 개념\n" +
-        "각 섹션 2-4문장 또는 짧은 코드. 한국어. 형식은 정확히 지킬 것.",
+        "## 한 줄 정의\n## 메커니즘 (3인칭)\n## 증거 · 사례\n## 설명적 간극\n## 관련 개념\n" +
+        "각 섹션 2-4문장. 환원이 멈추는 지점이 있으면 '설명적 간극'에 정직히 적는다. 한국어. 형식은 정확히 지킬 것.",
     };
     const maxTokensByDepth: Record<string, number> = {
       concise: 280,
@@ -1063,15 +1064,12 @@ export function createApi(config: Config) {
       "- 직접 인용은 본문에 있는 표현만. 추측 인용은 절대 금지.\n" +
       "- Buddy가 본문에 없는 detail을 말한 것 같으면 ⚠️ 표시로 알린다: " +
       "'⚠️ 본문에선 이 부분 직접 안 다룸 — Buddy가 일반 지식 기반으로 말한 것 같음'.\n" +
-      "- **코드/심볼 포맷팅 (v0.5.60 강제)**: 본문에 코드, 메서드명, 변수명, " +
-      "어노테이션이 포함되면 반드시 마크다운 코드 표기로 감싼다. " +
-      "  · 짧은 식별자/심볼은 인라인 백틱: `findByName`, `@Query`, `nativeQuery`. " +
-      "  · 한 줄 이상의 코드는 코드 펜스로: ```언어 (java/kotlin/python/sql/js 등) ... ``` " +
-      "  · '본문 인용' 영역의 blockquote(> ) 안에서도 코드 펜스/백틱 사용 — 코드를 " +
-      "    plain text로 흘리지 말 것. 사용자가 가독성 떨어진다고 명시했음.\n" +
-      "- '본문 인용' 안의 자연어 문장은 따옴표(\"...\")로 감쌀 수 있지만, 코드는 " +
-      "  반드시 코드 표기. 자연어와 코드가 섞이면 자연어는 blockquote 일반 텍스트, " +
-      "  코드는 펜스/백틱으로 시각 분리.\n" +
+      "- **용어/수식 포맷팅**: 본문에 전문 용어(뇌 영역·신경전달물질·이론명), 기호, " +
+      "수식·의사코드가 나오면 가독성 있게 마크다운으로 표기한다. " +
+      "  · 짧은 용어/기호는 인라인 백틱이나 볼드: `시상`, **예측 오차**, `P(원인|감각)`. " +
+      "  · 수식·의사코드 블록은 코드 펜스로 감싼다. " +
+      "  · '본문 인용' 영역의 blockquote(> ) 안에서도 용어/수식을 " +
+      "    plain text로 흘리지 말 것 — 가독성을 위해 시각적으로 분리한다.\n" +
       "- 짧게. 전체 300-450자 정도(코드 펜스 제외). 한국어. 마크다운 사용 가능.";
 
     const selectionBlock = body.selectionText?.trim()

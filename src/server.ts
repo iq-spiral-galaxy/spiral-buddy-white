@@ -89,7 +89,7 @@ export async function startServer(): Promise<{ url: string; port: number }> {
   // 부가 효과: 로컬 전용 앱의 외부 네트워크 노출 제거 (보안↑).
   serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, async () => {
     console.log();
-    console.log(chalk.bold.cyan("  🌀 iq-spiral-buddy"));
+    console.log(chalk.bold.cyan("  🌀 spiral-buddy-white"));
     console.log(chalk.gray("  spiral learning · Claude × Obsidian"));
     console.log();
     console.log(

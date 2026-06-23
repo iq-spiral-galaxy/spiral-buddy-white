@@ -17,7 +17,8 @@ import { type ClaudeClient, completeOnce } from "./claude.js";
 import type { Chapter } from "./roadmap.js";
 
 // vault.ts의 SPIRAL_DIR과 동일 정책 (workspace별 다른 sub-dir 지원).
-const SPIRAL_DIR = process.env.SPIRAL_VAULT_SUBDIR?.trim() || "spiral-buddy";
+const SPIRAL_DIR =
+  process.env.SPIRAL_VAULT_SUBDIR?.trim() || "spiral-buddy-white";
 const PREVIEW_CACHE_DIR = ".preview-cache";
 
 /** Claude로 미리보기 생성할 때 본문 잘림 길이 (안 그러면 너무 길어서 비효율). */
@@ -49,7 +50,7 @@ JSON으로만 응답. 마크다운 코드 펜스도 쓰지 마.
 
 응답 스키마:
 {
-  "summary": "한 문장. 이 챕터에서 다루는 핵심을 60자 이내로. 예: 'JPA의 Lazy Loading 동작 원리와 N+1 문제'",
+  "summary": "한 문장. 이 챕터에서 다루는 핵심을 60자 이내로. 예: '예측 부호화가 지각을 어떻게 구성하는가'",
   "keyQuestions": ["이 챕터를 읽으면 답할 수 있게 되는 핵심 질문 2~3개. 각 80자 이내", "..."],
   "prerequisites": "이 챕터 이해에 필요한 사전 지식 한 줄. 없거나 자명하면 null"
 }

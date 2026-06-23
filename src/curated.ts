@@ -25,9 +25,9 @@ const META_FILE = path.join(PKG_ROOT, ".cache", "curated-meta.json");
 const API_CACHE_TTL_MS = 60 * 60 * 1000; // 1시간
 
 export interface CuratedRepoInfo {
-  /** GitHub 레포 full name (e.g. "iq-dev-lab/redis-deep-dive") */
+  /** GitHub 레포 full name (e.g. "iq-psyche-lab/perception-distilled") */
   fullName: string;
-  /** 짧은 이름 (e.g. "redis-deep-dive") */
+  /** 짧은 이름 (e.g. "perception-distilled") */
   name: string;
   /** 레포 description */
   description: string | null;
@@ -141,7 +141,7 @@ async function fetchOrgRepos(
     const url = `https://api.github.com/orgs/${encodeURIComponent(org)}/repos?type=public&per_page=100&page=${page}`;
     const headers: Record<string, string> = {
       Accept: "application/vnd.github+json",
-      "User-Agent": "iq-spiral-buddy",
+      "User-Agent": "spiral-buddy-white",
       "X-GitHub-Api-Version": "2022-11-28",
     };
     if (token) headers.Authorization = `Bearer ${token}`;

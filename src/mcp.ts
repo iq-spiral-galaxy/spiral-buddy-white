@@ -1,5 +1,5 @@
 /**
- * iq-spiral-buddy MCP server (Phase 2)
+ * spiral-buddy-white MCP server (Phase 2)
  *
  * Claude Desktop에서 spiral-buddy의 로드맵/노트/vault를 도구로 사용 가능.
  * stdio 전송 — stdout은 MCP 프로토콜 채널이므로 console.log 사용 금지.
@@ -45,13 +45,13 @@ async function main() {
 
   if (!config.vaultPath) {
     process.stderr.write(
-      "[iq-spiral-buddy MCP] fatal: SPIRAL_VAULT_PATH must be set\n",
+      "[spiral-buddy-white MCP] fatal: SPIRAL_VAULT_PATH must be set\n",
     );
     process.exit(1);
   }
   if (!config.roadmapRoot && !config.curatedOrg) {
     process.stderr.write(
-      "[iq-spiral-buddy MCP] fatal: SPIRAL_ROADMAP_ROOT or SPIRAL_CURATED_ORG must be set\n",
+      "[spiral-buddy-white MCP] fatal: SPIRAL_ROADMAP_ROOT or SPIRAL_CURATED_ORG must be set\n",
     );
     process.exit(1);
   }
@@ -98,7 +98,7 @@ async function main() {
   }
 
   const server = new McpServer({
-    name: "iq-spiral-buddy",
+    name: "spiral-buddy-white",
     version: "0.3.0",
   });
 
@@ -112,7 +112,7 @@ async function main() {
       description:
         "사용 가능한 모든 학습 로드맵을 두 가지 소스에서 통합 반환합니다:\n" +
         "1. **Local** — SPIRAL_ROADMAP_ROOT 아래에서 자동 탐지된 로드맵 (사용자의 로컬 자료)\n" +
-        "2. **Curated** — GitHub 조직(예: iq-dev-lab)의 public 레포 중 이미 설치된 것\n\n" +
+        "2. **Curated** — GitHub 조직(예: iq-psyche-lab)의 public 레포 중 이미 설치된 것\n\n" +
         "어떤 로드맵으로 학습할지 사용자가 정하지 않았다면 이 도구를 먼저 호출하고 결과를 마크다운 표 그대로 보여주세요. " +
         "Curated 레포 중 아직 설치되지 않은 것을 보려면 `include_available=true`로 호출하세요 — 사용자가 '받기/install' 의사를 표하면 `spiral_install_curated`로 클론할 수 있습니다. " +
         "각 로드맵의 id는 후속 도구의 roadmap_id 인자로 사용합니다. " +
@@ -242,13 +242,13 @@ async function main() {
         description:
           `GitHub 조직 \`${org}\`의 public 레포를 로컬 캐시(.cache/curated/)에 git clone합니다. ` +
           "이미 설치된 레포면 알림만 반환. 클론 후엔 `spiral_list_roadmaps`로 새 로드맵이 보입니다. " +
-          "사용자가 'redis 로드맵으로 학습하자' 같이 명시한 레포를 처음 사용할 때 호출하세요. " +
+          "사용자가 '지각 로드맵으로 학습하자' 같이 명시한 레포를 처음 사용할 때 호출하세요. " +
           "shallow clone(--depth=1)이라 빠르고 디스크 절약됩니다.",
         inputSchema: {
           repo_name: z
             .string()
             .describe(
-              `${org}의 레포 이름 (예: 'redis-deep-dive'). spiral_list_roadmaps에 include_available=true로 호출해 정확한 이름 확인.`,
+              `${org}의 레포 이름 (예: 'perception-distilled'). spiral_list_roadmaps에 include_available=true로 호출해 정확한 이름 확인.`,
             ),
         },
       },
@@ -319,7 +319,7 @@ async function main() {
         roadmap_id: z
           .string()
           .describe(
-            "spiral_list_roadmaps에서 얻은 로드맵 id (예: 'transaction-mvcc' 또는 'spring ecosystem/spring-core-deep-dive/transaction-mvcc')",
+            "spiral_list_roadmaps에서 얻은 로드맵 id (예: 'perception-distilled' 또는 'hard-problem-distilled/the-explanatory-gap')",
           ),
       },
     },
@@ -574,7 +574,7 @@ async function main() {
       description:
         "특정 spiral-buddy 노트의 전체 본문(frontmatter 포함)을 반환합니다. " +
         "spiral_list_notes에서 얻은 relativePath를 그대로 넘기세요. " +
-        "cross-link 추론 시 관련 노트의 '핵심 개념', '헷갈렸던 지점' 섹션을 직접 확인하는 용도.",
+        "cross-link 추론 시 관련 노트의 '메커니즘 (3인칭)', '설명적 간극', '헷갈렸던 / 확인이 필요한 지점' 섹션을 직접 확인하는 용도.",
       inputSchema: {
         relative_path: z
           .string()
@@ -582,7 +582,7 @@ async function main() {
       },
     },
     async ({ relative_path }) => {
-      const filePath = path.join(vaultPath, "spiral-buddy", relative_path);
+      const filePath = path.join(vaultPath, "spiral-buddy-white", relative_path);
       try {
         const content = await fs.readFile(filePath, "utf-8");
         return { content: [{ type: "text", text: content }] };
@@ -609,7 +609,7 @@ async function main() {
         "\n\n세션과 같은 언어로 작성하세요 (보통 한국어). " +
         "'헷갈렸던 / 확인이 필요한 지점' 섹션이 핵심 — 다음 spiral 세션의 진입점이므로 학습자가 실제로 헤맸던 부분을 구체적으로 기록하세요. " +
         "각 섹션에 진짜로 다룬 내용이 없으면 `_이번 세션에서 다루지 않음._` 한 줄로 처리. " +
-        "tags는 주제 태그만 (예: 'spring-ioc') — 'study', 'learning' 같은 메타 태그 금지. " +
+        "tags는 주제 태그만 (예: 'predictive-coding') — 'study', 'learning' 같은 메타 태그 금지. " +
         "누락된 헤딩이 있으면 자동 보충되지만 가급적 모두 채우세요.",
       inputSchema: {
         roadmap_id: z.string().describe("spiral_list_roadmaps에서 얻은 로드맵 id"),
@@ -655,7 +655,7 @@ async function main() {
       const { missing, patchedBody } = validateAndPatchSections(body);
 
       const relatedAbs = (related_note_paths ?? []).map((rp) =>
-        path.join(vaultPath, "spiral-buddy", rp),
+        path.join(vaultPath, "spiral-buddy-white", rp),
       );
 
       // roadmap.id (예: "unit-testing/anatomy-of-good-tests") → repo + roadmap path
@@ -918,7 +918,7 @@ async function main() {
   const local = roadmaps.filter((r) => r.source === "local").length;
   const curated = roadmaps.filter((r) => r.source === "curated").length;
   process.stderr.write(
-    `[iq-spiral-buddy MCP] connected (v0.3.0)\n` +
+    `[spiral-buddy-white MCP] connected (v0.3.0)\n` +
       `  roadmap root: ${config.roadmapRoot ?? "(unset)"}\n` +
       `  curated org:  ${config.curatedOrg ?? "(disabled)"}\n` +
       `  vault:        ${vaultPath}\n` +
@@ -928,7 +928,7 @@ async function main() {
 
 main().catch((err) => {
   process.stderr.write(
-    `[iq-spiral-buddy MCP] fatal: ${err instanceof Error ? err.message : String(err)}\n`,
+    `[spiral-buddy-white MCP] fatal: ${err instanceof Error ? err.message : String(err)}\n`,
   );
   process.exit(1);
 });

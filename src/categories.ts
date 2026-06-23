@@ -270,7 +270,7 @@ export function normalizeRepoName(s: string): string {
 
 /**
  * Local 로드맵의 path에서 카테고리 추출.
- * 사용자의 폴더가 카테고리 단위로 정리되어 있다면 (예: iq-dev-lab),
+ * 사용자의 폴더가 카테고리 단위로 정리되어 있다면 (예: iq-psyche-lab),
  * roadmap_id의 첫 segment가 카테고리.
  *
  * org가 주어지면 그 조직 카테고리 정의와 매핑 시도 → emoji/color 활용.

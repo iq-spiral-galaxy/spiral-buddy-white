@@ -37,7 +37,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           path-to-signatures: signatures/version1/cla.json
-          path-to-document: https://github.com/iq-spiral-galaxy/spiral-buddy-blue/blob/main/CLA.md
+          path-to-document: https://github.com/iq-spiral-galaxy/spiral-buddy-white/blob/main/CLA.md
           branch: cla-signatures
           # 소유자·봇 계정은 서명 면제 (*[bot] = dependabot[bot]·github-actions[bot] 등)
           allowlist: e9ua1,*[bot]
@@ -45,7 +45,7 @@ jobs:
           # 기여자가 서명을 위해 코멘트할 문구 (위 if 조건과 반드시 일치)
           custom-pr-sign-comment: CLA 문서를 읽었으며 이에 동의하고 서명합니다
           custom-notsigned-prcomment: >-
-            기여 감사합니다! 머지 전에 [기여자 라이선스 동의서(CLA)](https://github.com/iq-spiral-galaxy/spiral-buddy-blue/blob/main/CLA.md)에
+            기여 감사합니다! 머지 전에 [기여자 라이선스 동의서(CLA)](https://github.com/iq-spiral-galaxy/spiral-buddy-white/blob/main/CLA.md)에
             서명이 필요합니다. CLA를 읽으신 뒤, **아래 문구를 그대로 이 PR에 코멘트**해주세요
             (서명·시각이 기록되며, 이후 PR엔 자동 적용됩니다). 아직 서명하지 않은 분:
           custom-allsigned-prcomment: >-

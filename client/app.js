@@ -1,4 +1,4 @@
-// iq-spiral-buddy client — vanilla ES module
+// spiral-buddy-white client — vanilla ES module
 // 로드맵 상태 관리 + 마크다운 렌더링 + 스트리밍
 
 import { marked } from "https://esm.sh/marked@13.0.3";
@@ -159,8 +159,8 @@ function displayWorkspaceName(workspace) {
     .filter(Boolean)
     .pop()
     ?.toLowerCase();
-  if (normalized === "iq-dev-lab" || rootBase === "iq-dev-lab") {
-    return "IQ Dev Lab";
+  if (normalized === "iq-psyche-lab" || rootBase === "iq-psyche-lab") {
+    return "IQ Psyche Lab";
   }
   return rawName || "Workspace";
 }
@@ -264,9 +264,12 @@ function cacheEls() {
 const THEME_KEY = "spiral-buddy:theme";
 
 function applyTheme(theme) {
-  const t = theme === "light" ? "light" : "dark";
-  document.body.classList.toggle("light-mode", t === "light");
-  document.body.classList.toggle("dark-mode", t === "dark");
+  // White(⚪)는 라이트 테마 전용 — 흰 배경·검은 나선·핑크 accent가 정체성이다.
+  // 다크 팔레트는 아직 없으므로(body.dark-mode 규칙 0개) 항상 light-mode로 고정한다.
+  // (.light-mode/.dark-mode 클래스 메커니즘은 향후 White 전용 다크 테마용으로 보존.)
+  const t = "light";
+  document.body.classList.add("light-mode");
+  document.body.classList.remove("dark-mode");
   document.querySelectorAll(".theme-opt").forEach((b) => {
     const active = b.dataset.theme === t;
     b.classList.toggle("active", active);
@@ -276,9 +279,9 @@ function applyTheme(theme) {
 
 function getStoredTheme() {
   try {
-    return localStorage.getItem(THEME_KEY) || "dark";
+    return localStorage.getItem(THEME_KEY) || "light";
   } catch {
-    return "dark";
+    return "light";
   }
 }
 
@@ -2475,7 +2478,7 @@ async function refreshUpdateBanner({ force = false } = {}) {
 
   // releases link 기본값
   const RELEASES_URL =
-    "https://github.com/iq-agent-lab/iq-spiral-buddy/releases/latest";
+    "https://github.com/iq-spiral-galaxy/spiral-buddy-white/releases/latest";
   if (releasesLink) {
     releasesLink.classList.remove("hidden");
     releasesLink.onclick = (e) => {
@@ -2876,7 +2879,7 @@ async function submitAddWorkspace() {
 }
 
 /**
- * 설정 모달 안에서 iq-dev-lab 38개를 한 번에 받기 + 워크스페이스로 자동 등록.
+ * 설정 모달 안에서 iq-psyche-lab 31개를 한 번에 받기 + 워크스페이스로 자동 등록.
  * setup wizard 흐름과 동일한 IPC를 재사용한다.
  */
 // ──────────────────────────────────────────────────────────
@@ -2893,7 +2896,7 @@ const _curatedState = {
 const CURATED_PARENT_KEY = "spiral-buddy:curated-parent";
 
 // v0.5.55 — 활성 워크스페이스의 roadmapRoot 부모 디렉토리 반환.
-// roadmapRoot가 "/Users/x/spiral/iq-dev-lab"이면 부모는 "/Users/x/spiral".
+// roadmapRoot가 "/Users/x/spiral/iq-psyche-lab"이면 부모는 "/Users/x/spiral".
 // curated install은 parentDir 안에 <org>/<repo> 형태로 설치됨.
 function _activeWorkspaceParentDir() {
   if (!_settingsCache?.workspaces) return null;
@@ -3165,11 +3168,11 @@ async function runCuratedInstall(repoNames, label) {
     if (!matches && window.spiralSettings) {
       if (
         confirm(
-          `iq-dev-lab을 워크스페이스로 등록할까요?\n${targetDir}\n(이미 등록되어 있다면 패스하세요)`,
+          `iq-psyche-lab을 워크스페이스로 등록할까요?\n${targetDir}\n(이미 등록되어 있다면 패스하세요)`,
         )
       ) {
         const wsRes = await window.spiralSettings.addWorkspace({
-          name: "iq-dev-lab",
+          name: "iq-psyche-lab",
           sourceKind: "dir",
           localPath: targetDir,
         });
@@ -5129,31 +5132,31 @@ async function submitMessage() {
 const QUIZ_LEVELS = [
   {
     level: 1,
-    label: "개념 확인",
+    label: "메커니즘",
     color: "violet",
     prompt:
-      "지금까지 다룬 내용에서 핵심 개념을 짚는 짧은 질문 2개를 내줘. 답은 알려주지 말고, 내가 먼저 말해보게 해줘.",
+      "지금까지 다룬 메커니즘(3인칭으로, 어떤 과정이 이 현상을 만들어내나)을 짚는 짧은 질문 2개를 내줘. 답은 알려주지 말고, 내가 먼저 말해보게 해줘.",
   },
   {
     level: 2,
     label: "적용",
     color: "cyan",
     prompt:
-      "오늘 배운 개념을 살짝 다른 시나리오에 적용해야 답할 수 있는 질문 2개를 내줘. 답은 알려주지 마.",
+      "오늘 다룬 메커니즘을 살짝 다른 현상이나 사례에 적용해야 답할 수 있는 질문 2개를 내줘. 답은 알려주지 마.",
   },
   {
     level: 3,
-    label: "함정·엣지케이스",
+    label: "간극·경계",
     color: "orange",
     prompt:
-      "오늘 다룬 개념의 흔한 오해, 함정, 또는 엣지 케이스를 찌르는 날카로운 질문 2개를 내줘. 답은 알려주지 마.",
+      "오늘 다룬 메커니즘이 1인칭 경험을 어디서부터 다 설명하지 못하는지(설명적 간극), 또는 흔한 직관의 함정(호문쿨루스·데카르트 극장처럼)을 찌르는 날카로운 질문 2개를 내줘. 답은 알려주지 마.",
   },
   {
     level: 4,
-    label: "종합 시나리오",
+    label: "1인칭 종합",
     color: "gold",
     prompt:
-      "오늘 다룬 개념 + 관련된 사전 지식까지 엮어서 답해야 하는, 실무에서 마주칠 만한 종합 시나리오 1개를 내줘. 답을 풀어주지 말고 내가 생각해보게 해줘.",
+      "오늘 다룬 메커니즘(3인칭)부터 그것이 끝내 만들어내는 1인칭 경험까지 한 줄로 엮어서 답해야 하는 종합 질문 1개를 내줘. 답을 풀어주지 말고 내가 생각해보게 해줘.",
   },
 ];
 

@@ -111,7 +111,7 @@ async function _domainReposForPreset(presetId) {
 // 사용자가 위에서 한 번 골랐는데 프리셋/도메인 클릭할 때마다 다시 묻던 문제 해결.
 //
 // 규칙:
-//   - 마지막 segment가 "iq-dev-lab" → 그 부모를 사용 (해당 폴더 안에 레포 추가)
+//   - 마지막 segment가 "iq-psyche-lab" → 그 부모를 사용 (해당 폴더 안에 레포 추가)
 //   - 그 외 → 그대로 부모로 사용 (그 폴더 안에 <org>/<repo> 형태로 설치)
 function _parentDirOfRoadmapRoot() {
   const v = (roadmapRoot.value ?? "").trim();
@@ -119,7 +119,7 @@ function _parentDirOfRoadmapRoot() {
   const idx = Math.max(v.lastIndexOf("/"), v.lastIndexOf("\\"));
   if (idx < 1) return v; // 슬래시 없는 단순 경로 → 그대로
   const lastSeg = v.slice(idx + 1).toLowerCase();
-  if (lastSeg === "iq-dev-lab") {
+  if (lastSeg === "iq-psyche-lab") {
     return v.slice(0, idx);
   }
   return v;
