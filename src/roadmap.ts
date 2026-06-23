@@ -254,22 +254,29 @@ async function loadRoadmapChaptersUncached(
   return chapters;
 }
 
+// 선두 이모지(변이 셀렉터·ZWJ·키캡·국기·스킨톤 포함) 1개 이상 + 뒤 공백.
+const LEADING_EMOJI =
+  /^(?:[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\uFE0F\u200D\u20E3\u{1F3FB}-\u{1F3FF}]+\s*)/u;
+// 선두 챕터번호/접두사 ("Ch1 ", "Chapter 2: ", "05. ", "3 - ").
+const LEADING_CHAPTER_NUM = /^(?:ch(?:apter)?\.?\s*\d+|\d{1,2})\s*[.:)\-–·]*\s+/i;
+
 /**
- * 챕터 제목에서 선두 챕터 번호/접두사 제거 — 사이드바엔 이미 인덱스(1.)가
- * 보이므로 "Ch1 The Terrain" 같은 중복을 떼고 주제만 남긴다.
- *   "Ch1 The Terrain" → "The Terrain"
- *   "Chapter 2: Dualism" → "Dualism"
- *   "05. Fixtures & SetUp" → "Fixtures & SetUp"
- *   "3 - Foo" → "Foo"
- * 제거 후 비면 원본 유지. ("1984 Orwell"처럼 번호가 주제의 일부면 안 떼게
- * 순수 숫자는 1~2자리 + 뒤에 공백 필요 조건으로 제한.)
+ * 챕터 제목 정규화 — 표시 일관성을 위해 선두 "장식"을 떼고 주제만 남긴다.
+ * (1) 챕터 번호 접두사: 사이드바에 이미 인덱스(1.)가 보이므로 중복.
+ * (2) 선두 이모지: 소스 헤딩마다 이모지 유무가 제각각이라 빼서 통일 (없는 게 기본).
+ *   "Ch1 The Terrain" → "The Terrain", "🧠 왜 마음-몸 문제인가" → "왜 마음-몸 문제인가",
+ *   "Chapter 2: Dualism" → "Dualism", "05. Fixtures" → "Fixtures".
+ * 순서 무관(이모지↔번호)하게 반복 적용. 제거 후 비면 원본 유지
+ * ("1984 Orwell"처럼 번호가 주제 일부면 보존 — 순수 숫자는 1~2자리+공백 조건).
  */
 function cleanChapterTitle(title: string): string {
-  const t = (title ?? "").trim();
-  const stripped = t
-    .replace(/^(?:ch(?:apter)?\.?\s*\d+|\d{1,2})\s*[.:)\-–·]*\s+/i, "")
-    .trim();
-  return stripped || t;
+  let t = (title ?? "").trim();
+  for (let i = 0; i < 4; i++) {
+    const before = t;
+    t = t.replace(LEADING_EMOJI, "").replace(LEADING_CHAPTER_NUM, "").trim();
+    if (t === before) break;
+  }
+  return t || (title ?? "").trim();
 }
 
 async function loadChapterFile(
