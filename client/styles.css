@@ -9760,3 +9760,34 @@ body.dark-mode .logo-spiral svg path {
 body.light-mode .gap-item {
   background: var(--bg-elev-2);
 }
+
+/* 챕터 미리보기 카드의 "마주칠 간극" 필드 (White 전용) */
+.chapter-ai-gap {
+  margin-top: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  background: rgba(236, 72, 153, 0.08);
+  border-radius: 6px;
+  border-left: 2px solid var(--accent);
+}
+.chapter-ai-gap-label {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-right: 4px;
+}
+
+/* 원리 인덱스 — 원리 영문명 + 노트의 레이어 배지 */
+.principle-en {
+  font-size: 10px;
+  font-weight: 400;
+  opacity: 0.55;
+}
+.principle-note-layer {
+  font-size: 10.5px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}

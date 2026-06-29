@@ -2,6 +2,17 @@ import type { Chapter, Roadmap } from "./roadmap.js";
 import type { SpiralNote } from "./vault.js";
 import { noteBelongsToRoadmap, noteMatchesChapter } from "./vault.js";
 import { completeOnce, type ClaudeClient } from "./claude.js";
+import { extractSectionBody } from "./note-writer.js";
+
+/** note-writer가 노트에 태그로 부여하는 6개 cross-cutting 원리. */
+const PRINCIPLE_SET = new Set([
+  "representation",
+  "prediction",
+  "binding",
+  "self-reference",
+  "embodiment",
+  "emergence",
+]);
 
 export interface SpiralSuggestion {
   recommendedChapterId: string | null;
@@ -10,7 +21,7 @@ export interface SpiralSuggestion {
   mode: "first-time" | "deeper-layer" | "next-chapter" | "cross-link";
 }
 
-const SUGGEST_SYSTEM = `You analyze a learner's roadmap and their past spiral-buddy notes, then suggest what to study next.
+const SUGGEST_SYSTEM = `You analyze a learner's roadmap (study of mind/brain/consciousness) and their past spiral-buddy notes, then suggest what to study next.
 
 You output STRICT JSON only, no prose, no markdown fences, matching this shape:
 {
@@ -20,14 +31,16 @@ You output STRICT JSON only, no prose, no markdown fences, matching this shape:
   "relatedChapterIds": string[]
 }
 
-Principles:
-- If no prior notes exist → mode "first-time", pick the earliest chapter.
-- If the user has notes on a topic at depth 1 and seems uncertain about parts of it → mode "deeper-layer", recommend the SAME chapter again (deeper).
-- If the user has solid depth-1 notes on previous chapters → mode "next-chapter", advance.
-- If two distant chapters connect to recent learning → mode "cross-link".
+This domain spirals through: 메커니즘(3인칭) → 설명적 간극 → 1인칭 경험. Each note is tagged "gap-marked" (the explanatory gap was honestly confronted) or "gap-open" (mechanism noted but the gap not yet faced), and may carry cross-cutting principles (표상/예측/통합/자기참조/체화/창발).
+
+Principles for choosing:
+- No prior notes → mode "first-time", earliest chapter (메커니즘 바닥부터).
+- A topic studied only at depth 1, OR whose prior note is "gap-open" → mode "deeper-layer", recommend the SAME chapter again so the explanatory gap actually gets confronted.
+- Mechanism + gap solidly handled ("gap-marked") on earlier chapters → mode "next-chapter", advance.
+- A recurring principle links a distant chapter to recent learning → mode "cross-link" (레이어 횡단 회수).
 - Choose recommendedChapterId from the provided list. Return null only if nothing fits.
 - "relatedChapterIds" must reference items from the provided notes.
-- Keep rationale under 280 chars, written in Korean if the notes are Korean, else English.`;
+- Keep rationale under 280 chars, in the notes' language (Korean if Korean). Frame it in the 메커니즘→간극→경험 spirit — e.g., "X의 메커니즘은 잡았는데 간극은 아직 안 짚었어. 한 층 더 들어가 '그 느낌'이 어디서 빠지는지 보자."`;
 
 export async function suggestNext(
   client: ClaudeClient,
@@ -65,10 +78,16 @@ export async function suggestNext(
 
   const noteIndex = notes
     .slice(0, 30)
-    .map(
-      (n) =>
-        `- chapter_id: "${n.chapterId ?? "?"}" · topic: "${n.topic}" · depth: ${n.depth} · date: ${n.date} · summary: ${n.summary || "(none)"}`,
-    )
+    .map((n) => {
+      const gapMarked = extractSectionBody(n.body, "설명적 간극")
+        ? "gap-marked"
+        : "gap-open";
+      const principles = (n.tags ?? []).filter((t) => PRINCIPLE_SET.has(t));
+      const princStr = principles.length
+        ? ` · principles: ${principles.join(",")}`
+        : "";
+      return `- chapter_id: "${n.chapterId ?? "?"}" · topic: "${n.topic}" · depth: ${n.depth} · ${gapMarked}${princStr} · date: ${n.date} · summary: ${n.summary || "(none)"}`;
+    })
     .join("\n");
 
   const userMsg = `# Roadmap: ${roadmap.name}

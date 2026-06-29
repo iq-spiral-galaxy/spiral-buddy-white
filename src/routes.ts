@@ -921,6 +921,108 @@ export function createApi(config: Config) {
   });
 
   // ─────────────────────────────────────────────────────
+  // 원리 인덱스 (White 전용) — 노트의 6개 cross-cutting 원리 태그로
+  // 노트를 원리별로 모아 레이어 횡단 회수를 한눈에. "표상·예측·통합·
+  // 자기참조·체화·창발이 뉴런부터 자아까지 반복된다"는 랩의 완성 기준 시각화.
+  // ─────────────────────────────────────────────────────
+  app.get("/principles", async (c) => {
+    if (!config.vaultPath) {
+      return c.json({ error: "No vault configured" }, 400);
+    }
+    const notes = await listSpiralNotes(config.vaultPath);
+
+    const domains = config.curatedOrg
+      ? await getOrgDomains(config.curatedOrg)
+      : null;
+    type PDomain = {
+      id: string;
+      name: string;
+      emoji: string;
+      color: string;
+      order: number;
+    };
+    const domainByRepo = new Map<string, PDomain>();
+    if (domains) {
+      for (const d of domains) {
+        for (const cat of d.categories) {
+          for (const r of cat.repos) {
+            domainByRepo.set(normalizeRepoName(r), {
+              id: d.id,
+              name: d.name,
+              emoji: d.emoji,
+              color: d.color,
+              order: d.order ?? 99,
+            });
+          }
+        }
+      }
+    }
+
+    const PRINCIPLES = [
+      { id: "representation", label: "표상", en: "Representation", emoji: "🗺️", color: "#ec4899" },
+      { id: "prediction", label: "예측", en: "Prediction", emoji: "🔮", color: "#a855f7" },
+      { id: "binding", label: "통합·결합", en: "Binding", emoji: "🧩", color: "#6366f1" },
+      { id: "self-reference", label: "자기참조", en: "Strange Loop", emoji: "🔄", color: "#f472b6" },
+      { id: "embodiment", label: "체화", en: "Embodiment", emoji: "🫀", color: "#e11d48" },
+      { id: "emergence", label: "창발", en: "Emergence", emoji: "🌌", color: "#8b5cf6" },
+    ];
+    type PNote = {
+      topic: string;
+      chapter: string;
+      repo: string | null;
+      roadmapName: string | null;
+      depth: number;
+      date: string;
+      summary: string;
+      obsidianUri: string | null;
+      domain: PDomain | null;
+    };
+    const groups = PRINCIPLES.map((p) => ({ ...p, notes: [] as PNote[] }));
+    const byId = new Map(groups.map((g) => [g.id, g]));
+
+    let taggedNoteCount = 0;
+    for (const n of notes) {
+      const tags = Array.isArray(n.tags) ? n.tags : [];
+      const matched = tags.filter((t) => byId.has(t));
+      if (matched.length === 0) continue;
+      taggedNoteCount++;
+      const domain = n.repo
+        ? (domainByRepo.get(normalizeRepoName(n.repo)) ?? null)
+        : null;
+      for (const t of matched) {
+        byId.get(t)!.notes.push({
+          topic: n.topic,
+          chapter: n.chapter,
+          repo: n.repo,
+          roadmapName: n.roadmapName,
+          depth: n.depth,
+          date: n.date,
+          summary: n.summary,
+          obsidianUri: obsidianUri(n.filePath),
+          domain,
+        });
+      }
+    }
+    // 각 원리 안에서 레이어 order → 최신순
+    for (const g of groups) {
+      g.notes.sort((a, b) => {
+        const ao = a.domain?.order ?? 999;
+        const bo = b.domain?.order ?? 999;
+        if (ao !== bo) return ao - bo;
+        return (b.date ?? "").localeCompare(a.date ?? "");
+      });
+    }
+    const principleCount = groups.filter((g) => g.notes.length > 0).length;
+
+    return c.json({
+      totalNotes: notes.length,
+      taggedNoteCount,
+      principleCount,
+      groups,
+    });
+  });
+
+  // ─────────────────────────────────────────────────────
   // 4. History (전체 or 로드맵별 필터링)
   // ─────────────────────────────────────────────────────
 

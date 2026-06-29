@@ -150,6 +150,16 @@
           <span>설명적 간극</span>
           <span id="gaps-count" class="trash-count gaps-count">—</span>
         </button>
+        <button id="principles-open-btn" class="trash-open-btn principles-btn" type="button" title="원리 인덱스 — 표상·예측·통합 등 본질 원리가 레이어를 가로질러 어디서 반복되는지">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="6" cy="6.5" r="2.3"></circle>
+            <circle cx="18" cy="6.5" r="2.3"></circle>
+            <circle cx="12" cy="18" r="2.3"></circle>
+            <path d="M8.3 6.5h7.4M7.4 8.4l3.4 7.4M16.6 8.4l-3.4 7.4"></path>
+          </svg>
+          <span>원리</span>
+          <span id="principles-count" class="trash-count principles-count">—</span>
+        </button>
         <button id="activity-open-btn" class="trash-open-btn activity-btn" type="button" title="학습 활동 캘린더 — 나선 기록과 연속일">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -435,6 +445,20 @@
           <span id="gaps-summary" class="gaps-summary"></span>
         </div>
         <div id="gaps-list" class="gaps-list"></div>
+      </div>
+    </div>
+
+    <div id="principles-modal" class="modal-overlay hidden" aria-hidden="true">
+      <div class="modal gaps-modal" role="dialog" aria-modal="true" aria-labelledby="principles-modal-title">
+        <header class="trash-modal-header">
+          <h3 id="principles-modal-title">🔁 원리 인덱스 — 레이어 횡단</h3>
+          <button id="principles-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+        </header>
+        <div class="gaps-toolbar">
+          <input id="principles-search" type="text" placeholder="원리·노트 검색… (예: 예측, 표상)" autocomplete="off" spellcheck="false" />
+          <span id="principles-summary" class="gaps-summary"></span>
+        </div>
+        <div id="principles-list" class="gaps-list"></div>
       </div>
     </div>
 

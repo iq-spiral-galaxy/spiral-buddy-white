@@ -237,6 +237,13 @@ function cacheEls() {
   els.gapsSearch = $("gaps-search");
   els.gapsSummary = $("gaps-summary");
   els.gapsList = $("gaps-list");
+  els.principlesOpenBtn = $("principles-open-btn");
+  els.principlesCount = $("principles-count");
+  els.principlesModal = $("principles-modal");
+  els.principlesModalClose = $("principles-modal-close");
+  els.principlesSearch = $("principles-search");
+  els.principlesSummary = $("principles-summary");
+  els.principlesList = $("principles-list");
   els.activityOpenBtn = $("activity-open-btn");
   els.activityStreak = $("activity-streak");
   els.activityModal = $("activity-modal");
@@ -617,6 +624,7 @@ function wireEvents() {
   refreshTrashBadge();
   refreshActivityBadge();
   refreshGapsBadge();
+  refreshPrinciplesBadge();
 
   // 설명적 간극 인덱스
   if (els.gapsOpenBtn) {
@@ -633,6 +641,24 @@ function wireEvents() {
   if (els.gapsSearch) {
     els.gapsSearch.addEventListener("input", () => {
       renderGaps(state._gapsData, els.gapsSearch.value);
+    });
+  }
+
+  // 원리 인덱스
+  if (els.principlesOpenBtn) {
+    els.principlesOpenBtn.addEventListener("click", openPrinciplesModal);
+  }
+  if (els.principlesModalClose) {
+    els.principlesModalClose.addEventListener("click", closePrinciplesModal);
+  }
+  if (els.principlesModal) {
+    els.principlesModal.addEventListener("click", (e) => {
+      if (e.target === els.principlesModal) closePrinciplesModal();
+    });
+  }
+  if (els.principlesSearch) {
+    els.principlesSearch.addEventListener("input", () => {
+      renderPrinciples(state._principlesData, els.principlesSearch.value);
     });
   }
 
@@ -660,6 +686,9 @@ function wireEvents() {
     }
     if (e.key === "Escape" && els.gapsModal && !els.gapsModal.classList.contains("hidden")) {
       closeGapsModal();
+    }
+    if (e.key === "Escape" && els.principlesModal && !els.principlesModal.classList.contains("hidden")) {
+      closePrinciplesModal();
     }
   });
   if (els.searchModal) {
@@ -1728,6 +1757,7 @@ async function _handleSessionInterruptionBody() {
       await loadRoadmapData();
       refreshActivityBadge();
       refreshGapsBadge();
+      refreshPrinciplesBadge();
     }
   }
   return "continue";
@@ -2365,11 +2395,16 @@ function _renderChapterAiCardBody(pop, chapter, card) {
   const prereqHtml = card.prerequisites
     ? `<div class="chapter-ai-prereq"><span class="chapter-ai-prereq-label">선수 지식</span> ${escapeHtml(card.prerequisites)}</div>`
     : "";
+  // v0.2.1 (White) — 이 챕터에서 마주칠 핵심 설명적 간극/직관의 함정 예고
+  const gapHtml = card.gap
+    ? `<div class="chapter-ai-gap"><span class="chapter-ai-gap-label">🌉 마주칠 간극</span> ${escapeHtml(card.gap)}</div>`
+    : "";
 
   body.innerHTML = `
     <div class="chapter-ai-summary">${escapeHtml(card.summary)}</div>
     <div class="chapter-ai-section-label">이 챕터를 읽으면 답할 수 있게 됩니다</div>
     ${questionsHtml}
+    ${gapHtml}
     ${prereqHtml}
     <div class="chapter-ai-actions">
       <button class="chapter-ai-start-btn" type="button">이 챕터 시작</button>
@@ -4474,6 +4509,114 @@ function renderGaps(data, query) {
   els.gapsList.innerHTML = html.join("");
 }
 
+// ──────────────────────────────────────────────────────────
+// 원리 인덱스 (White 전용) — 6 cross-cutting 원리가 레이어를 가로질러
+// 어디서 반복되는지 모아보기 (레이어 횡단 회수의 시각화).
+// ──────────────────────────────────────────────────────────
+async function refreshPrinciplesBadge() {
+  if (!els.principlesCount) return;
+  try {
+    const data = await fetch("/api/principles").then((r) => r.json());
+    state._principlesData = data;
+    els.principlesCount.textContent = String(data.principleCount ?? 0);
+  } catch {
+    els.principlesCount.textContent = "—";
+  }
+}
+
+async function openPrinciplesModal() {
+  if (!els.principlesModal) return;
+  els.principlesModal.classList.remove("hidden");
+  els.principlesModal.setAttribute("aria-hidden", "false");
+  if (els.principlesSearch) els.principlesSearch.value = "";
+  if (els.principlesList) {
+    els.principlesList.innerHTML = `<div class="gaps-empty">loading…</div>`;
+  }
+  try {
+    const data = await fetch("/api/principles").then((r) => r.json());
+    state._principlesData = data;
+    if (els.principlesCount) {
+      els.principlesCount.textContent = String(data.principleCount ?? 0);
+    }
+    renderPrinciples(data, "");
+    if (els.principlesSearch) els.principlesSearch.focus();
+  } catch (err) {
+    if (els.principlesList) {
+      els.principlesList.innerHTML = `<div class="gaps-empty">로드 실패: ${escapeHtml(err.message)}</div>`;
+    }
+  }
+}
+
+function closePrinciplesModal() {
+  if (!els.principlesModal) return;
+  els.principlesModal.classList.add("hidden");
+  els.principlesModal.setAttribute("aria-hidden", "true");
+}
+
+function renderPrinciples(data, query) {
+  if (!els.principlesList) return;
+  const groups = data?.groups ?? [];
+  const q = (query ?? "").trim().toLowerCase();
+  const nonEmpty = groups.filter((g) => (g.notes ?? []).length);
+
+  if (!nonEmpty.length) {
+    if (els.principlesSummary) els.principlesSummary.textContent = "";
+    els.principlesList.innerHTML = `<div class="gaps-empty">아직 원리 태그가 붙은 노트가 없어요.<br/>세션 노트에 표상·예측·통합·자기참조·체화·창발이 잡히면 레이어를 가로질러 여기 모여요.</div>`;
+    return;
+  }
+
+  let shown = 0;
+  const html = [];
+  for (const g of nonEmpty) {
+    const notes = q
+      ? g.notes.filter(
+          (n) =>
+            `${n.topic} ${n.summary ?? ""} ${n.domain?.name ?? ""} ${n.roadmapName ?? ""}`
+              .toLowerCase()
+              .includes(q) ||
+            g.label.toLowerCase().includes(q) ||
+            String(g.en ?? "").toLowerCase().includes(q),
+        )
+      : g.notes;
+    if (!notes.length) continue;
+    shown += notes.length;
+    html.push(
+      `<div class="gaps-domain-head" style="color:${escapeAttr(g.color)}">${escapeHtml(g.emoji)} ${escapeHtml(g.label)} <span class="principle-en">${escapeHtml(g.en ?? "")}</span> <span class="gaps-domain-count">${notes.length}</span></div>`,
+    );
+    for (const n of notes) {
+      const layer = n.domain ? `${n.domain.emoji} ${n.domain.name}` : "🗂 기타";
+      const src = [
+        n.repo ? displayRepoName(n.repo) : n.roadmapName,
+        `d${n.depth}`,
+        n.date,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const titleInner = n.obsidianUri
+        ? `<a href="${escapeAttr(n.obsidianUri)}" title="옵시디언에서 노트 열기">${escapeHtml(n.topic)} ↗</a>`
+        : escapeHtml(n.topic);
+      html.push(
+        `<div class="gap-item" style="border-left-color:${escapeAttr(g.color)}">` +
+          `<div class="principle-note-layer" style="color:${escapeAttr(n.domain?.color ?? "var(--text-faint)")}">${escapeHtml(layer)}</div>` +
+          `<div class="gap-text"><strong>${titleInner}</strong>${n.summary ? ` — ${escapeHtml(n.summary)}` : ""}</div>` +
+          `<div class="gap-meta">${escapeHtml(src)}</div>` +
+          `</div>`,
+      );
+    }
+  }
+
+  if (els.principlesSummary) {
+    els.principlesSummary.textContent = q
+      ? `매칭 ${shown}`
+      : `원리 ${nonEmpty.length}개 · 태그된 노트 ${data.taggedNoteCount ?? 0}개`;
+  }
+  if (!html.length) {
+    els.principlesList.innerHTML = `<div class="gaps-empty">"${escapeHtml(query)}"에 매칭되는 게 없어요.</div>`;
+    return;
+  }
+  els.principlesList.innerHTML = html.join("");
+}
+
 /**
  * 사이드바 활동 버튼의 streak 뱃지 갱신.
  * 오늘 또는 어제까지 끊김 없이 학습한 일수.
@@ -5017,6 +5160,7 @@ function openDeletePopover(anchorEl, target) {
         refreshTrashBadge(),
         refreshActivityBadge(),
         refreshGapsBadge(),
+        refreshPrinciplesBadge(),
       ]);
     } catch (err) {
       alert(`삭제 실패: ${err.message}`);
@@ -5875,6 +6019,7 @@ async function endSession() {
       await loadRoadmapData();
       refreshActivityBadge();
       refreshGapsBadge();
+      refreshPrinciplesBadge();
       setStatus("");
     }
   } catch (err) {

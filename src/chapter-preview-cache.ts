@@ -34,6 +34,8 @@ export interface ChapterPreviewCard {
   keyQuestions: string[];
   /** 이 챕터를 이해하려면 알아야 할 사전 지식 (없으면 null) */
   prerequisites: string | null;
+  /** v0.2.1 (White) — 이 챕터에서 마주칠 핵심 설명적 간극/직관의 함정 (없으면 null) */
+  gap: string | null;
   /** 생성 당시 챕터 본문의 해시 — 본문 바뀌면 invalidate */
   contentHash: string;
   /** 생성 시점 (ms epoch). LLM ban 변경 없으니 Date.now 사용 OK. */
@@ -42,17 +44,18 @@ export interface ChapterPreviewCard {
   model: string;
 }
 
-const PREVIEW_SYSTEM = `너는 학습 자료의 챕터 미리보기 카드를 생성하는 도우미야.
+const PREVIEW_SYSTEM = `너는 마음·뇌·의식(Psyche) 학습 자료의 챕터 미리보기 카드를 생성하는 도우미야.
 
-학습자가 챕터에 진입하기 전에 "이 챕터가 내가 공부하려는 내용이 맞나" 빠르게 판단할 수 있도록 짧고 정확한 카드를 만들어. 본문에 없는 내용은 절대 추측하지 마. 본문이 짧거나 모호하면 그에 맞게 짧게 답하고, 모르겠는 부분은 빼.
+학습자가 챕터에 진입하기 전에 "이 챕터가 내가 공부하려는 내용이 맞나" 빠르게 판단할 수 있도록 짧고 정확한 카드를 만들어. 이 도메인의 핵심은 **3인칭 메커니즘**과 그것이 끝내 닿지 못하는 **1인칭 경험의 간극**을 함께 보는 것 — 미리보기에도 그 간극을 한 줄 예고해줘. 본문에 없는 내용은 절대 추측하지 마. 본문이 짧거나 모호하면 그에 맞게 짧게 답하고, 모르겠는 부분은 null.
 
 JSON으로만 응답. 마크다운 코드 펜스도 쓰지 마.
 
 응답 스키마:
 {
-  "summary": "한 문장. 이 챕터에서 다루는 핵심을 60자 이내로. 예: '예측 부호화가 지각을 어떻게 구성하는가'",
+  "summary": "한 문장. 이 챕터가 다루는 핵심 메커니즘을 60자 이내로. 예: '예측 부호화가 지각을 어떻게 구성하는가'",
   "keyQuestions": ["이 챕터를 읽으면 답할 수 있게 되는 핵심 질문 2~3개. 각 80자 이내", "..."],
-  "prerequisites": "이 챕터 이해에 필요한 사전 지식 한 줄. 없거나 자명하면 null"
+  "prerequisites": "이 챕터 이해에 필요한 사전 지식 한 줄. 없거나 자명하면 null",
+  "gap": "이 챕터에서 마주칠 핵심 설명적 간극 또는 직관의 함정 한 줄 — 3인칭 메커니즘이 1인칭 경험을 어디서 못 닿는지, 또는 흔한 오해(호문쿨루스·데카르트 극장 등). 60자 이내. 본문에서 드러나지 않으면 null"
 }
 
 응답 언어는 본문 언어와 맞춤 (한국어 본문 → 한국어 카드).`;
@@ -192,6 +195,9 @@ ${body}`;
       : String(p.prerequisites).trim();
   const prerequisites =
     prereqRaw && prereqRaw.toLowerCase() !== "null" ? prereqRaw : null;
+  const gapRaw =
+    p.gap === null || p.gap === undefined ? null : String(p.gap).trim();
+  const gap = gapRaw && gapRaw.toLowerCase() !== "null" ? gapRaw : null;
 
   if (!summary) {
     throw new Error("미리보기 결과에 summary가 없음");
@@ -204,6 +210,7 @@ ${body}`;
     summary,
     keyQuestions,
     prerequisites,
+    gap,
     contentHash: computeContentHash(content),
     generatedAt: Date.now(),
     model,
