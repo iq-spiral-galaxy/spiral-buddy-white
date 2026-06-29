@@ -963,6 +963,9 @@ export function createApi(config: Config) {
             roadmapName: roadmap.name,
           }),
         );
+      } else {
+        // 미지 roadmap_id로 필터 요청 → 빈 결과 (전체 노트 누출 방지).
+        notes = [];
       }
     }
 
