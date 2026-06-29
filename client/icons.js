@@ -70,7 +70,7 @@ const ICON_SVG = {
   mirror: `<ellipse cx="12" cy="9" rx="5.5" ry="6"/><path d="M12 15v6M9 21h6"/><path d="M9.8 6.4A3.2 3.2 0 0 1 12 5.4"/>`,
 };
 
-function svgIcon(name, className = "inline-icon") {
+export function svgIcon(name, className = "inline-icon") {
   const body = ICON_SVG[name] ?? ICON_SVG.folder;
   return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
