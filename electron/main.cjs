@@ -33,6 +33,9 @@ const CONFIG_PATH = path.join(app.getPath("userData"), "spiral-buddy-config.json
 const LOG_DIR = app.getPath("logs"); // macOS: ~/Library/Logs/<productName>
 const SERVER_LOG_PATH = path.join(LOG_DIR, "server.log");
 
+// curated 조직 (config/setup 기본값 + git-workspace 감지에 공통 사용)
+const CURATED_ORG = "iq-psyche-lab";
+
 let mainWindow = null;
 let setupWindow = null;
 let serverPort = null;
@@ -183,7 +186,7 @@ function migrateConfig(raw) {
     roadmapRoot: raw.roadmapRoot ?? null,
     vaultSubDir: "spiral-buddy-white",
     source: "legacy",
-    categoriesOrg: raw.curatedOrg ?? "iq-psyche-lab",
+    categoriesOrg: raw.curatedOrg ?? CURATED_ORG,
   };
   return ensureSonnetDefault({
     anthropicApiKey: raw.anthropicApiKey,
@@ -192,7 +195,7 @@ function migrateConfig(raw) {
     model: raw.model,
     maxTokens: raw.maxTokens,
     githubToken: raw.githubToken,
-    curatedOrg: raw.curatedOrg ?? "iq-psyche-lab",
+    curatedOrg: raw.curatedOrg ?? CURATED_ORG,
     activeWorkspaceId: ws.id,
     workspaces: [ws],
   });
@@ -632,7 +635,7 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
     model: input.model ?? null,
     maxTokens: input.maxTokens ?? null,
     githubToken: input.githubToken ?? null,
-    curatedOrg: "iq-psyche-lab",
+    curatedOrg: CURATED_ORG,
     activeWorkspaceId: "default",
     workspaces: [
       {
@@ -641,7 +644,7 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
         roadmapRoot: input.roadmapRoot ?? null,
         vaultSubDir: "spiral-buddy-white",
         source: input.source ?? "setup",
-        categoriesOrg: "iq-psyche-lab",
+        categoriesOrg: CURATED_ORG,
       },
     ],
   };
@@ -1478,8 +1481,8 @@ ipcMain.handle("settings:add-workspace", async (event, args) => {
     sourceUrl: args.gitUrl ?? null,
     // iq-psyche-lab 카테고리는 자동 적용. 다른 레포면 카테고리 없음.
     categoriesOrg:
-      args.gitUrl?.includes("iq-psyche-lab") || roadmapRoot.includes("iq-psyche-lab")
-        ? "iq-psyche-lab"
+      args.gitUrl?.includes(CURATED_ORG) || roadmapRoot.includes(CURATED_ORG)
+        ? CURATED_ORG
         : null,
   };
   cfg.workspaces.push(ws);
@@ -1489,8 +1492,7 @@ ipcMain.handle("settings:add-workspace", async (event, args) => {
 });
 
 // ─── iq-psyche-lab 31개 레포 자동 다운로드 ──────────────────────
-
-const CURATED_ORG = "iq-psyche-lab";
+// CURATED_ORG 상수는 파일 상단으로 이동 (refactor/6b)
 
 function fetchOrgRepos(org) {
   return new Promise((resolve, reject) => {

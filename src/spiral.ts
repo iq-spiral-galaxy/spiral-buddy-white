@@ -3,6 +3,7 @@ import type { SpiralNote } from "./vault.js";
 import { noteBelongsToRoadmap, noteMatchesChapter } from "./vault.js";
 import { completeOnce, type ClaudeClient } from "./claude.js";
 import { extractSectionBody } from "./note-writer.js";
+import { safeJsonParse } from "./text-utils.js";
 
 /** note-writer가 노트에 태그로 부여하는 6개 cross-cutting 원리. */
 const PRINCIPLE_SET = new Set([
@@ -153,16 +154,4 @@ function isMode(v: unknown): v is SpiralSuggestion["mode"] {
     v === "next-chapter" ||
     v === "cross-link"
   );
-}
-
-function safeJsonParse(s: string): Record<string, unknown> | null {
-  try {
-    const cleaned = s
-      .replace(/^```(?:json)?\s*/i, "")
-      .replace(/```\s*$/i, "")
-      .trim();
-    return JSON.parse(cleaned);
-  } catch {
-    return null;
-  }
 }
