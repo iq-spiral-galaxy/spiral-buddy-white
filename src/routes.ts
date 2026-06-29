@@ -1609,9 +1609,9 @@ function registerSessionRoutes(app: Hono, config: Config, client: ClaudeClient) 
   });
 }
 
-export function createApi(config: Config) {
+export function createApi(config: Config, deps: { client?: ClaudeClient } = {}) {
   const app = new Hono();
-  const client = createClient(config);
+  const client = deps.client ?? createClient(config);
 
   // 헬퍼 obsidianUri / parseCuratedRepoBody / getInstalledRoadmaps / resolveRoadmap
   // 는 모듈레벨로 분리됨 (config를 인자로 받음).
