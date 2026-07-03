@@ -580,9 +580,11 @@
               <input id="settings-llm-key" type="password" placeholder="API Key" autocomplete="off" spellcheck="false" />
             </div>
             <div class="settings-row" id="settings-llm-model-row">
-              <input id="settings-llm-model" type="text" list="settings-llm-model-list" placeholder="모델 ID — 목록에서 선택하거나 직접 입력" autocomplete="off" spellcheck="false" />
-              <datalist id="settings-llm-model-list"></datalist>
+              <select id="settings-llm-model"></select>
               <button id="settings-llm-fetch-models" class="settings-save-btn" type="button" title="이 프로바이더 API에서 사용 가능한 모델 목록을 가져옵니다">목록 불러오기</button>
+            </div>
+            <div class="settings-row hidden" id="settings-llm-model-custom-row">
+              <input id="settings-llm-model-custom" type="text" placeholder="모델 ID 직접 입력 (예: 신모델 출시 시)" autocomplete="off" spellcheck="false" />
             </div>
             <div class="settings-hint" id="settings-llm-hint"></div>
           </div>

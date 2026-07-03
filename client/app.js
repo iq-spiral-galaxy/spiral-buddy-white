@@ -2708,7 +2708,8 @@ function llmEls() {
     baseUrl: document.getElementById("settings-llm-baseurl"),
     key: document.getElementById("settings-llm-key"),
     model: document.getElementById("settings-llm-model"),
-    modelList: document.getElementById("settings-llm-model-list"),
+    modelCustomRow: document.getElementById("settings-llm-model-custom-row"),
+    modelCustom: document.getElementById("settings-llm-model-custom"),
     fetchBtn: document.getElementById("settings-llm-fetch-models"),
     hint: document.getElementById("settings-llm-hint"),
     baseUrlRow: document.getElementById("settings-llm-baseurl-row"),
@@ -2730,9 +2731,53 @@ function initLlmSection() {
   );
   el.saveBtn?.addEventListener("click", saveLlm);
   el.fetchBtn?.addEventListener("click", fetchLlmModelList);
+  // '직접 입력…' 선택 시 입력칸 표시
+  el.model?.addEventListener("change", () => {
+    el.modelCustomRow?.classList.toggle(
+      "hidden",
+      el.model.value !== LLM_CUSTOM_MODEL,
+    );
+  });
 }
 
-/** v0.6.2 — 프로바이더 API에서 실시간 모델 목록을 받아 datalist 갱신.
+// v0.6.3 — 모델 선택을 datalist(현재 입력값으로 필터링돼 전체 목록이 안 보이는
+// 함정)에서 진짜 <select>로 교체. '직접 입력…' 옵션으로 신모델도 수동 입력 가능.
+const LLM_CUSTOM_MODEL = "__custom__";
+
+/** 모델 <select> 채우기 — models 전체 + '직접 입력…'. selected가 목록에 없으면 옵션으로 포함. */
+function populateLlmModelSelect(el, models, selected) {
+  if (!el.model) return;
+  const extra =
+    selected && selected !== LLM_CUSTOM_MODEL && !(models ?? []).includes(selected)
+      ? [selected]
+      : [];
+  const ids = [...new Set([...extra, ...(models ?? [])].filter(Boolean))];
+  const opts = ids.map(
+    (id) =>
+      `<option value="${escapeAttr(id)}"${id === selected ? " selected" : ""}>${escapeHtml(id)}</option>`,
+  );
+  opts.push(
+    `<option value="${LLM_CUSTOM_MODEL}"${selected === LLM_CUSTOM_MODEL ? " selected" : ""}>직접 입력…</option>`,
+  );
+  el.model.innerHTML = opts.join("");
+  if (selected === LLM_CUSTOM_MODEL || ids.length === 0) {
+    el.model.value = LLM_CUSTOM_MODEL;
+  }
+  el.modelCustomRow?.classList.toggle(
+    "hidden",
+    el.model.value !== LLM_CUSTOM_MODEL,
+  );
+}
+
+/** 현재 선택된 모델 id (직접 입력이면 입력칸 값). */
+function llmSelectedModel(el) {
+  if (!el.model) return "";
+  return el.model.value === LLM_CUSTOM_MODEL
+    ? (el.modelCustom?.value ?? "").trim()
+    : el.model.value;
+}
+
+/** v0.6.2 — 프로바이더 API에서 실시간 모델 목록을 받아 셀렉터 갱신.
  *  정적 프리셋이 낡아도 항상 현재 모델을 고를 수 있게. */
 async function fetchLlmModelList() {
   const el = llmEls();
@@ -2750,13 +2795,11 @@ async function fetchLlmModelList() {
       apiKey: el.key?.value?.trim() ?? "",
     });
     if (res?.ok && Array.isArray(res.models)) {
-      if (el.modelList) {
-        el.modelList.innerHTML = res.models
-          .map((m) => `<option value="${escapeAttr(m)}"></option>`)
-          .join("");
-      }
+      // 현재 선택 유지(직접 입력했던 모델은 옵션으로 보존), 없으면 첫 모델
+      const current = llmSelectedModel(el);
+      populateLlmModelSelect(el, res.models, current || res.models[0]);
       showHint(
-        `✓ <strong>${res.models.length}개 모델</strong>을 불러왔습니다 — 모델 칸에서 선택하거나 계속 직접 입력할 수 있어요.`,
+        `✓ <strong>${res.models.length}개 모델</strong>을 불러왔습니다 — 목록에서 선택하거나 '직접 입력…'으로 계속 입력할 수 있어요.`,
         true,
       );
     } else {
@@ -2783,13 +2826,13 @@ function applyLlmPreset(id, { fillDefaults = false } = {}) {
   if (!isAnthropic) {
     if (fillDefaults) {
       el.baseUrl.value = preset.baseUrl ?? "";
-      el.model.value = preset.exampleModel ?? "";
-    }
-    // 프로바이더별 대표 모델 목록 → 자동완성 제안 (직접 입력도 가능)
-    if (el.modelList) {
-      el.modelList.innerHTML = (preset.models ?? [])
-        .map((m) => `<option value="${escapeAttr(m)}"></option>`)
-        .join("");
+      // 프리셋 모델 전체를 셀렉터에 (권장 기본 선택). 커스텀 프리셋은 '직접 입력…'만.
+      populateLlmModelSelect(
+        el,
+        preset.models ?? [],
+        preset.exampleModel || LLM_CUSTOM_MODEL,
+      );
+      if (el.modelCustom) el.modelCustom.value = "";
     }
     // Base URL은 프리셋 고정값을 보여주되, 커스텀에서만 직접 편집
     el.baseUrl.readOnly = !isCustom;
@@ -2823,7 +2866,11 @@ function refreshLlmSectionFromCache() {
   applyLlmPreset(el.provider.value, { fillDefaults: true });
   if (el.provider.value !== "anthropic") {
     if (_settingsCache?.llmBaseUrl) el.baseUrl.value = _settingsCache.llmBaseUrl;
-    if (_settingsCache?.llmModel) el.model.value = _settingsCache.llmModel;
+    if (_settingsCache?.llmModel) {
+      // 저장된 모델을 선택 (프리셋 목록에 없으면 옵션으로 포함해 보존)
+      const preset = LLM_PRESETS.find((p) => p.id === el.provider.value);
+      populateLlmModelSelect(el, preset?.models ?? [], _settingsCache.llmModel);
+    }
   }
 }
 
@@ -2834,7 +2881,7 @@ async function saveLlm() {
   const isAnthropic = provider === "anthropic";
   const baseUrl = isAnthropic ? null : el.baseUrl.value.trim();
   const apiKey = isAnthropic ? "" : el.key.value.trim();
-  const model = isAnthropic ? "" : el.model.value.trim();
+  const model = isAnthropic ? "" : llmSelectedModel(el);
 
   const showErr = (msg) => {
     if (el.hint) {
@@ -2845,7 +2892,7 @@ async function saveLlm() {
 
   if (!isAnthropic) {
     if (!baseUrl) return showErr("Base URL을 입력하세요.");
-    if (!model) return showErr("모델 ID를 입력하세요.");
+    if (!model) return showErr("모델을 선택하거나 '직접 입력…'에 모델 ID를 입력하세요.");
     const keySaved =
       Boolean(_settingsCache?.llmKeySet) && _settingsCache?.llmProvider === provider;
     if (!apiKey && !keySaved) return showErr("API 키를 입력하세요.");
