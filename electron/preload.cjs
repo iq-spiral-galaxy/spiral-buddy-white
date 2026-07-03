@@ -56,6 +56,9 @@ contextBridge.exposeInMainWorld("spiralSettings", {
   // v0.6 멀티 LLM — {provider, baseUrl, apiKey, model, relaunch}
   updateLlm: (payload) =>
     ipcRenderer.invoke("settings:update-llm", payload ?? {}),
+  // v0.6.2 — 프로바이더 API에서 실시간 모델 목록 {baseUrl, apiKey?}
+  fetchLlmModels: (payload) =>
+    ipcRenderer.invoke("settings:fetch-llm-models", payload ?? {}),
   switchWorkspace: (id) =>
     ipcRenderer.invoke("settings:switch-workspace", { id }),
   removeWorkspace: (args) =>

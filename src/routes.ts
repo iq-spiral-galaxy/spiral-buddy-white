@@ -255,27 +255,47 @@ function registerCoreRoutes(app: Hono, config: Config) {
         ],
       });
     }
+    // 2026-07 기준 현행 Claude 라인업 (공식 Models overview).
+    // 구세대(4.6/4.7)는 기존 사용자의 저장된 선택 보존을 위해 목록에 유지.
     return c.json({
       default: config.model,
       provider: "anthropic",
       models: [
         {
+          id: "claude-sonnet-5",
+          label: "Sonnet 5",
+          tier: "balanced",
+          description: "추천 기본값. 최신 세대 — 빠르고 매우 똑똑함",
+        },
+        {
+          id: "claude-fable-5",
+          label: "Fable 5",
+          tier: "highest",
+          description: "최고 지능 (항상 깊은 사고 · 고가). 가장 어려운 주제에",
+        },
+        {
+          id: "claude-opus-4-8",
+          label: "Opus 4.8",
+          tier: "high",
+          description: "깊은 추론 플래그십. 복잡한 학습 대화에 최적",
+        },
+        {
           id: "claude-sonnet-4-6",
           label: "Sonnet 4.6",
           tier: "balanced",
-          description: "추천 기본값. 빠르고 충분히 똑똑함",
+          description: "이전 기본값 (구세대·안정)",
         },
         {
           id: "claude-opus-4-7",
           label: "Opus 4.7",
-          tier: "highest",
-          description: "가장 똑똑함. 깊은 추론·복잡한 학습 대화에 최적",
+          tier: "high",
+          description: "구세대 플래그십",
         },
         {
           id: "claude-opus-4-6",
           label: "Opus 4.6",
           tier: "high",
-          description: "균형형. 비싸지만 학습 품질 높음",
+          description: "구세대 (기존 선택 보존용)",
         },
         {
           id: "claude-haiku-4-5",

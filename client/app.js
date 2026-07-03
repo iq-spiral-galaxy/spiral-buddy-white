@@ -2709,6 +2709,7 @@ function llmEls() {
     key: document.getElementById("settings-llm-key"),
     model: document.getElementById("settings-llm-model"),
     modelList: document.getElementById("settings-llm-model-list"),
+    fetchBtn: document.getElementById("settings-llm-fetch-models"),
     hint: document.getElementById("settings-llm-hint"),
     baseUrlRow: document.getElementById("settings-llm-baseurl-row"),
     keyRow: document.getElementById("settings-llm-key-row"),
@@ -2728,6 +2729,43 @@ function initLlmSection() {
     applyLlmPreset(el.provider.value, { fillDefaults: true }),
   );
   el.saveBtn?.addEventListener("click", saveLlm);
+  el.fetchBtn?.addEventListener("click", fetchLlmModelList);
+}
+
+/** v0.6.2 — 프로바이더 API에서 실시간 모델 목록을 받아 datalist 갱신.
+ *  정적 프리셋이 낡아도 항상 현재 모델을 고를 수 있게. */
+async function fetchLlmModelList() {
+  const el = llmEls();
+  if (!el.fetchBtn || !window.spiralSettings?.fetchLlmModels) return;
+  const showHint = (html, ok) => {
+    if (!el.hint) return;
+    el.hint.innerHTML = html;
+    el.hint.classList.toggle("ok", Boolean(ok));
+  };
+  el.fetchBtn.disabled = true;
+  el.fetchBtn.textContent = "불러오는 중…";
+  try {
+    const res = await window.spiralSettings.fetchLlmModels({
+      baseUrl: el.baseUrl?.value?.trim() ?? "",
+      apiKey: el.key?.value?.trim() ?? "",
+    });
+    if (res?.ok && Array.isArray(res.models)) {
+      if (el.modelList) {
+        el.modelList.innerHTML = res.models
+          .map((m) => `<option value="${escapeAttr(m)}"></option>`)
+          .join("");
+      }
+      showHint(
+        `✓ <strong>${res.models.length}개 모델</strong>을 불러왔습니다 — 모델 칸에서 선택하거나 계속 직접 입력할 수 있어요.`,
+        true,
+      );
+    } else {
+      showHint(`✗ ${escapeHtml(res?.error ?? "모델 목록 조회 실패")}`, false);
+    }
+  } finally {
+    el.fetchBtn.disabled = false;
+    el.fetchBtn.textContent = "목록 불러오기";
+  }
 }
 
 function applyLlmPreset(id, { fillDefaults = false } = {}) {

@@ -122,7 +122,7 @@ export function loadConfig(): Config {
 
   return {
     apiKey,
-    model: process.env.SPIRAL_MODEL ?? "claude-sonnet-4-6",
+    model: process.env.SPIRAL_MODEL ?? "claude-sonnet-5",
     maxTokens: Number.parseInt(process.env.SPIRAL_MAX_TOKENS ?? "4096", 10),
     llmProvider,
     llmBaseUrl,

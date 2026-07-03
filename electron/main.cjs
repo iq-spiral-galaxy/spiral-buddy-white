@@ -117,8 +117,9 @@ function displayWorkspaceName(nameOrPath) {
 // 옛 스키마 (single):
 //   { anthropicApiKey, vaultPath, roadmapRoot, ... }  → workspaces[0]으로 자동 마이그레이션.
 
-// 추천 디폴트 모델 — Sonnet 4.6 (빠르고 충분히 똑똑함, 비용 효율적)
-const DEFAULT_MODEL = "claude-sonnet-4-6";
+// 추천 디폴트 모델 — Sonnet 5 (2026-07 현행 세대, 빠르고 매우 똑똑함, 비용 효율적)
+// (ensureSonnetDefault는 1회성 baseline이라 기존 사용자의 저장 선택은 건드리지 않음)
+const DEFAULT_MODEL = "claude-sonnet-5";
 
 /**
  * v0.5.28 일회성 마이그레이션: 옛 install에서 Opus가 디폴트로 박혀있던 경우 Sonnet 4.6으로.
@@ -1354,6 +1355,53 @@ ipcMain.handle("settings:update-llm", (_e, args) => {
     }, 100);
   }
   return { ok: true, restartNeeded: true };
+});
+
+// v0.6.2 — 프로바이더 API에서 실시간 모델 목록 조회 (OpenAI-호환 GET {base}/models).
+// 정적 프리셋 목록이 낡아도 사용자가 항상 현재 모델을 받아올 수 있게.
+// 키는 입력값 우선, 없으면 저장된 llmApiKey(복호화됨) 사용. 원문은 렌더러로 안 나감.
+ipcMain.handle("settings:fetch-llm-models", async (_e, args) => {
+  const baseUrl = String(args?.baseUrl ?? "").trim().replace(/\/+$/, "");
+  if (!baseUrl) return { ok: false, error: "Base URL을 입력하세요." };
+  const cfg = loadConfig();
+  const apiKey =
+    String(args?.apiKey ?? "").trim() || (cfg?.llmApiKey ?? "");
+  if (!apiKey) return { ok: false, error: "API 키를 먼저 입력(또는 저장)하세요." };
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10_000);
+  try {
+    const res = await fetch(`${baseUrl}/models`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      return { ok: false, error: `모델 목록 조회 실패 (HTTP ${res.status})` };
+    }
+    const data = await res.json();
+    const ids = (Array.isArray(data?.data) ? data.data : [])
+      .map((m) => m?.id)
+      .filter((id) => typeof id === "string" && id)
+      // 채팅용이 아닌 모델(임베딩/음성/이미지 등) 제외
+      .filter(
+        (id) =>
+          !/(embed|whisper|tts|dall|moderation|audio|realtime|image|rerank|sora|transcribe|ocr|davinci|babbage)/i.test(
+            id,
+          ),
+      )
+      .sort();
+    if (ids.length === 0) {
+      return { ok: false, error: "이 엔드포인트에서 모델 목록을 찾지 못했습니다." };
+    }
+    return { ok: true, models: [...new Set(ids)] };
+  } catch (err) {
+    const msg =
+      err?.name === "AbortError"
+        ? "요청 시간 초과 (10초)"
+        : String(err?.message ?? err);
+    return { ok: false, error: `모델 목록 조회 실패: ${msg}` };
+  } finally {
+    clearTimeout(timer);
+  }
 });
 
 ipcMain.handle("settings:switch-workspace", (_e, { id }) => {

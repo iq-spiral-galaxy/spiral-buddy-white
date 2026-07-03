@@ -2841,6 +2841,14 @@ body.sidebar-collapsed .messages {
   opacity: 0.65;
   cursor: default;
 }
+/* datalist 선택/자동완성 시 Chromium autofill이 입력칸을 흰색으로 칠하는 것 방지 */
+#settings-modal input:-webkit-autofill,
+#settings-modal input:-webkit-autofill:hover,
+#settings-modal input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-elev) inset;
+  -webkit-text-fill-color: var(--text);
+  caret-color: var(--text);
+}
 
 .settings-add-btn {
   width: 100%;
