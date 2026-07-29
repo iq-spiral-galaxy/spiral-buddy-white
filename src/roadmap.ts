@@ -1,9 +1,9 @@
 import fs from "node:fs/promises";
-import fsSync from "node:fs";
 import path from "node:path";
 import { glob } from "glob";
 import matter from "gray-matter";
 import { createTtlCache } from "./ttl-cache.js";
+import { mapWithConcurrency } from "./async-utils.js";
 
 /**
  * 로드맵 식별 체계:
@@ -50,6 +50,8 @@ export interface Chapter {
 const IGNORE_PATTERNS = ["node_modules/**", ".git/**", ".obsidian/**"];
 const MAX_DEPTH = 6;
 const MIN_CHAPTERS = 2;
+const DIRECTORY_SCAN_CONCURRENCY = 32;
+const CHAPTER_READ_CONCURRENCY = 8;
 
 /**
  * root 디렉토리 아래에서 로드맵 후보들을 모두 찾는다.
@@ -61,8 +63,12 @@ const MIN_CHAPTERS = 2;
 //   discoverRoadmaps 60초 / loadRoadmapChapters 30초.
 // curated install/refresh/uninstall 시에는 invalidateRoadmapCaches()로
 // 즉시 무효화 (curated.ts에서 호출).
-const roadmapsCache = createTtlCache<Roadmap[]>(60_000);
-const chaptersCache = createTtlCache<Chapter[]>(30_000);
+const roadmapsCache = createTtlCache<Roadmap[]>(60_000, {
+  loadTimeoutMs: 90_000,
+});
+const chaptersCache = createTtlCache<Chapter[]>(30_000, {
+  loadTimeoutMs: 60_000,
+});
 
 export function invalidateRoadmapCaches(): void {
   roadmapsCache.invalidate();
@@ -82,7 +88,29 @@ async function discoverRoadmapsUncached(rootPath: string): Promise<Roadmap[]> {
   if (!stat?.isDirectory()) return [];
 
   const roadmaps: Roadmap[] = [];
-  await walk(rootPath, rootPath, 0, roadmaps, "");
+  let level: WalkTask[] = [
+    {
+      currentDir: rootPath,
+      parentSortPrefix: "",
+    },
+  ];
+
+  // 같은 깊이의 디렉터리를 제한된 동시성으로 읽는다. 기존 재귀 구현은
+  // 2천 개가 넘는 디렉터리를 하나씩 기다려 iCloud 콜드 스타트가 100초를
+  // 넘겼다. BFS는 sortKey를 그대로 보존하면서 독립 디렉터리 I/O만 병렬화한다.
+  for (let depth = 0; depth <= MAX_DEPTH && level.length > 0; depth++) {
+    const inspected = await mapWithConcurrency(
+      level,
+      DIRECTORY_SCAN_CONCURRENCY,
+      (task) => inspectDirectory(rootPath, task),
+    );
+    level = [];
+    for (const result of inspected) {
+      if (result.roadmap) roadmaps.push(result.roadmap);
+      level.push(...result.children);
+    }
+  }
+
   roadmaps.sort((a, b) =>
     (a.sortKey ?? a.id).localeCompare(b.sortKey ?? b.id, undefined, {
       numeric: true,
@@ -93,6 +121,16 @@ async function discoverRoadmapsUncached(rootPath: string): Promise<Roadmap[]> {
 }
 
 const UNORDERED_PREFIX = "zzz9__";
+
+interface WalkTask {
+  currentDir: string;
+  parentSortPrefix: string;
+}
+
+interface InspectedDirectory {
+  roadmap: Roadmap | null;
+  children: WalkTask[];
+}
 
 function buildChildSortKey(
   parentSortPrefix: string,
@@ -115,22 +153,20 @@ function buildChildSortKey(
  */
 async function readContainerChildOrder(
   dir: string,
+  entries: import("node:fs").Dirent[],
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>();
+  // 기존의 대소문자 우선순위와 symlink README 지원을 유지하면서,
+  // 별도 existsSync 호출 없이 이미 받은 readdir 결과를 재사용한다.
   const candidates = ["README.md", "readme.md", "Readme.md"];
-  let readmePath: string | null = null;
-  for (const name of candidates) {
-    const p = path.join(dir, name);
-    if (fsSync.existsSync(p)) {
-      readmePath = p;
-      break;
-    }
-  }
-  if (!readmePath) return out;
+  const readme = candidates
+    .map((name) => entries.find((entry) => entry.name === name))
+    .find((entry) => entry && (entry.isFile() || entry.isSymbolicLink()));
+  if (!readme) return out;
 
   let content: string;
   try {
-    content = await fs.readFile(readmePath, "utf-8");
+    content = await fs.readFile(path.join(dir, readme.name), "utf-8");
   } catch {
     return out;
   }
@@ -149,20 +185,16 @@ async function readContainerChildOrder(
   return out;
 }
 
-async function walk(
+async function inspectDirectory(
   rootPath: string,
-  currentDir: string,
-  depth: number,
-  out: Roadmap[],
-  parentSortPrefix: string,
-): Promise<void> {
-  if (depth > MAX_DEPTH) return;
-
+  task: WalkTask,
+): Promise<InspectedDirectory> {
+  const { currentDir, parentSortPrefix } = task;
   let entries: import("node:fs").Dirent[];
   try {
     entries = await fs.readdir(currentDir, { withFileTypes: true });
   } catch {
-    return;
+    return { roadmap: null, children: [] };
   }
 
   // 직접 들어있는 .md 파일 수 (README.md 제외)
@@ -173,6 +205,7 @@ async function walk(
       e.name.toLowerCase() !== "readme.md",
   );
 
+  let roadmap: Roadmap | null = null;
   if (directMdFiles.length >= MIN_CHAPTERS) {
     // roadmap.id는 항상 POSIX 스타일(/) — Windows의 path.relative는 백슬래시(\)를
     // 반환하는데, categorize/hierarchy/repo순서 매칭이 모두 "/"로 split하므로
@@ -181,37 +214,36 @@ async function walk(
       currentDir === rootPath
         ? path.basename(currentDir)
         : path.relative(rootPath, currentDir).split(path.sep).join("/");
-    out.push({
+    roadmap = {
       id,
       name: path.basename(currentDir),
       absolutePath: currentDir,
       chapterCount: directMdFiles.length,
       sortKey: parentSortPrefix + path.basename(currentDir),
-    });
-    // ⚠ return하지 않음 — 자체가 roadmap이어도 sub-dir에 더 깊은 roadmap이
-    // 있을 수 있음(예: tech-interview 레포의 Web/ → Web/Spring/, Web/Vue/...).
-    // sub-dir 탐색 계속해서 학습 자료 누락 방지.
+    };
   }
 
-  // 컨테이너 또는 mixed 디렉토리 — README에서 child 순서 추출
-  const childOrder = await readContainerChildOrder(currentDir);
+  const childDirs = entries.filter(
+    (entry) =>
+      entry.isDirectory() &&
+      !entry.name.startsWith(".") &&
+      entry.name !== "node_modules",
+  );
+  const childOrder =
+    childDirs.length > 0
+      ? await readContainerChildOrder(currentDir, entries)
+      : new Map<string, number>();
+  const children = childDirs.map((entry) => ({
+    currentDir: path.join(currentDir, entry.name),
+    parentSortPrefix:
+      buildChildSortKey(
+        parentSortPrefix,
+        entry.name,
+        childOrder.get(entry.name),
+      ) + "/",
+  }));
 
-  // 하위 디렉토리들 탐색
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    if (entry.name.startsWith(".")) continue;
-    if (entry.name === "node_modules") continue;
-    const childPrefix =
-      buildChildSortKey(parentSortPrefix, entry.name, childOrder.get(entry.name)) +
-      "/";
-    await walk(
-      rootPath,
-      path.join(currentDir, entry.name),
-      depth + 1,
-      out,
-      childPrefix,
-    );
-  }
+  return { roadmap, children };
 }
 
 /**
@@ -243,15 +275,16 @@ async function loadRoadmapChaptersUncached(
   );
   const sorted = filtered.sort((a, b) => naturalCompare(a, b));
 
-  const chapters: Chapter[] = [];
-  for (let i = 0; i < sorted.length; i++) {
-    const rel = sorted[i]!;
-    const abs = path.join(roadmap.absolutePath, rel);
-    const ch = await loadChapterFile(abs, roadmap, rel);
-    ch.order = i;
-    chapters.push(ch);
-  }
-  return chapters;
+  return mapWithConcurrency(
+    sorted,
+    CHAPTER_READ_CONCURRENCY,
+    async (rel, index) => {
+      const abs = path.join(roadmap.absolutePath, rel);
+      const chapter = await loadChapterFile(abs, roadmap, rel);
+      chapter.order = index;
+      return chapter;
+    },
+  );
 }
 
 // 선두 이모지(변이 셀렉터·ZWJ·키캡·국기·스킨톤 포함) 1개 이상 + 뒤 공백.

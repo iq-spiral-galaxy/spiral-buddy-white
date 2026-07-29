@@ -1,6 +1,6 @@
 {
   "name": "spiral-buddy-white",
-  "version": "0.3.2",
+  "version": "0.6.10",
   "description": "Spiral learning companion for the study of mind & consciousness (Psyche) — \"Explain it, don't explain it away.\" Local desktop app bridging Claude and Obsidian: roadmap-driven sessions, mechanism→gap→experience notes, spiral revisit detection.",
   "type": "module",
   "main": "electron/main.cjs",
@@ -12,14 +12,15 @@
     "dev": "tsx src/server.ts",
     "start": "tsx src/server.ts",
     "mcp": "tsx src/mcp.ts",
-    "build": "tsc",
+    "client:vendor": "node scripts/build-client-vendor.mjs",
+    "build": "pnpm client:vendor && tsc",
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test test/*.test.ts",
-    "electron:dev": "tsc && electron electron/main.cjs",
-    "electron:build": "tsc && electron-builder",
-    "electron:build:mac": "tsc && electron-builder --mac",
-    "electron:build:win": "tsc && electron-builder --win",
-    "electron:build:linux": "tsc && electron-builder --linux"
+    "electron:dev": "pnpm build && electron electron/main.cjs",
+    "electron:build": "pnpm build && electron-builder",
+    "electron:build:mac": "pnpm build && electron-builder --mac",
+    "electron:build:win": "pnpm build && electron-builder --win",
+    "electron:build:linux": "pnpm build && electron-builder --linux"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.95.2",
@@ -27,9 +28,13 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "chalk": "^5.3.0",
     "dotenv": "^16.4.5",
+    "dompurify": "3.1.6",
     "glob": "^11.0.0",
     "gray-matter": "^4.0.3",
+    "highlight.js": "11.10.0",
     "hono": "^4.6.14",
+    "marked": "13.0.3",
+    "marked-highlight": "2.2.1",
     "open": "^10.1.0",
     "zod": "^3.25.0"
   },
@@ -38,6 +43,7 @@
     "@types/node": "^22.10.2",
     "electron": "^30.5.1",
     "electron-builder": "^24.13.3",
+    "esbuild": "0.28.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2"
   },

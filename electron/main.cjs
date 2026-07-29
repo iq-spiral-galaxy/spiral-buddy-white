@@ -508,7 +508,7 @@ function createSetupWindow() {
     width: 600,
     height: 640,
     title: "Spiral Buddy White — 초기 설정",
-    backgroundColor: "#ffffff",
+    backgroundColor: "#faf7fa",
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -534,7 +534,8 @@ async function createMainWindow() {
     minWidth: 800,
     minHeight: 600,
     title: "Spiral Buddy White",
-    backgroundColor: "#ffffff",
+    // 렌더러의 기본 dark theme가 뜨기 전 밝은 flash가 보이지 않게 맞춘다.
+    backgroundColor: "#0d0c11",
     icon: path.join(__dirname, "build", "icon.png"),
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -562,7 +563,7 @@ async function createMainWindow() {
       title: "Spiral Buddy White",
       message: "진행 중인 학습 세션이 있습니다.",
       detail:
-        '닫으면 지금까지의 대화가 사라집니다.\n저장하려면 메인 창의 "End & Save"를 먼저 누르세요.',
+        '닫으면 지금까지의 대화가 사라집니다.\n저장하려면 메인 창의 "마치고 저장"을 먼저 누르세요.',
     });
     if (choice === 1) {
       // preventDefault → beforeunload의 preventDefault를 무시하고 unload 진행
@@ -626,6 +627,29 @@ ipcMain.handle("setup:pick-directory", async (_e, opts) => {
   return result.filePaths[0];
 });
 
+async function activateSavedSetupConfig(cfg, relaunchAfterSave) {
+  if (relaunchAfterSave) {
+    // 실행 중인 서버는 in-process라 설정만 바꾼 채 bootWithConfig()를 다시
+    // 호출하면 기존 서버/창이 남은 상태로 두 번째 서버/창이 생긴다.
+    // IPC 응답이 렌더러에 도착할 시간을 준 뒤 앱 전체를 한 번만 재시작한다.
+    setTimeout(() => {
+      if (setupWindow && !setupWindow.isDestroyed()) {
+        setupWindow.close();
+      }
+      app.relaunch();
+      app.exit(0);
+    }, 120);
+    return { ok: true, relaunching: true };
+  }
+
+  launchingMain = true;
+  if (setupWindow && !setupWindow.isDestroyed()) {
+    setupWindow.close();
+  }
+  await bootWithConfig(cfg);
+  return { ok: true };
+}
+
 ipcMain.handle("setup:validate-and-save", async (_e, input) => {
   // 최소 검증
   if (!input?.anthropicApiKey?.startsWith("sk-")) {
@@ -636,6 +660,27 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
   }
   if (input.roadmapRoot && !fs.existsSync(input.roadmapRoot)) {
     return { ok: false, error: "Roadmap 경로가 존재하지 않습니다." };
+  }
+
+  // 메인 창을 닫고 설정 창만 남긴 경우에도 in-process 서버는 살아 있다.
+  // 창 존재 여부가 아니라 서버 실행 여부를 기준으로 중복 부팅을 막는다.
+  const relaunchAfterSave = Boolean(serverStarted);
+  if (relaunchAfterSave) {
+    const parent =
+      setupWindow && !setupWindow.isDestroyed() ? setupWindow : mainWindow;
+    const choice = dialog.showMessageBoxSync(parent, {
+      type: "warning",
+      title: "설정을 적용하려면 다시 시작해야 해요",
+      message: "저장 후 Spiral Buddy를 다시 시작할까요?",
+      detail:
+        '진행 중인 학습이 있다면 먼저 메인 창에서 "마치고 저장"을 눌러주세요.',
+      buttons: ["취소", "저장하고 다시 시작"],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    if (choice !== 1) {
+      return { ok: false, canceled: true, error: "설정 적용을 취소했어요." };
+    }
   }
 
   // v0.5.85 — 기존 config가 있으면 merge (덮어쓰기 금지).
@@ -659,12 +704,7 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
       }
     }
     saveConfig(existing);
-    launchingMain = true; // close()로 발사될 종료를 막고 부팅으로 전환
-    if (setupWindow && !setupWindow.isDestroyed()) {
-      setupWindow.close();
-    }
-    await bootWithConfig(existing);
-    return { ok: true };
+    return activateSavedSetupConfig(existing, relaunchAfterSave);
   }
 
   // 새 스키마로 저장. 첫 워크스페이스 = "기본" (또는 디렉토리 이름)
@@ -692,12 +732,7 @@ ipcMain.handle("setup:validate-and-save", async (_e, input) => {
     ],
   };
   saveConfig(cfg);
-  launchingMain = true; // close()로 발사될 종료를 막고 부팅으로 전환
-  if (setupWindow && !setupWindow.isDestroyed()) {
-    setupWindow.close();
-  }
-  await bootWithConfig(cfg);
-  return { ok: true };
+  return activateSavedSetupConfig(cfg, relaunchAfterSave);
 });
 
 // v0.5.77 — 프로토콜 whitelist. 렌더러가 XSS 등으로 오염돼도
@@ -729,7 +764,7 @@ ipcMain.handle("app:open-external", (_e, url) => {
 // "받기" 누르면 detached bash로 install 스크립트 실행하고 앱 종료.
 // 플랫폼별로 다른 자산 사용: darwin-arm64 / darwin-x64 / win32 / linux
 
-// v0.5.87 — iq-spiral-galaxy org로 이전 + spiral-buddy-blue로 rename.
+// v0.5.87 — iq-spiral-galaxy org로 이전 + White 앱 업데이트 피드 적용.
 // 옛 주소(iq-agent-lab/iq-spiral-buddy)는 GitHub redirect가 살아있어
 // 구버전 클라이언트의 업데이트 체크/다운로드도 계속 동작함.
 // ⚠ 옛 주소에 새 레포를 만들면 redirect가 끊김 — 절대 재사용 금지.

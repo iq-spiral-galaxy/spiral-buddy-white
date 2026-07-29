@@ -21,9 +21,58 @@ export interface TtlCache<T> {
   invalidate(key?: string): void;
 }
 
-export function createTtlCache<T>(ttlMs: number): TtlCache<T> {
+export interface TtlCacheOptions {
+  /**
+   * loader가 끝나지 않을 때 공유 inflight를 영구 대기시키지 않는 상한.
+   * underlying 작업 자체를 중단시키지는 않지만, 늦은 결과는 generation guard로
+   * cache에 쓰이지 않는다.
+   */
+  loadTimeoutMs?: number;
+}
+
+export class CacheLoadTimeoutError extends Error {
+  readonly key: string;
+  readonly timeoutMs: number;
+
+  constructor(key: string, timeoutMs: number) {
+    super(`Cache loader timed out after ${timeoutMs}ms (${key})`);
+    this.name = "CacheLoadTimeoutError";
+    this.key = key;
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+function withTimeout<T>(
+  promise: Promise<T>,
+  key: string,
+  timeoutMs: number | undefined,
+): Promise<T> {
+  if (!timeoutMs || timeoutMs <= 0) return promise;
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new CacheLoadTimeoutError(key, timeoutMs)),
+      timeoutMs,
+    );
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (error) => {
+        clearTimeout(timer);
+        reject(error);
+      },
+    );
+  });
+}
+
+export function createTtlCache<T>(
+  ttlMs: number,
+  options: TtlCacheOptions = {},
+): TtlCache<T> {
   const entries = new Map<string, Entry<T>>();
   const inflight = new Map<string, Promise<T>>();
+  const generations = new Map<string, number>();
 
   return {
     async get(key: string, loader: () => Promise<T>): Promise<T> {
@@ -33,21 +82,54 @@ export function createTtlCache<T>(ttlMs: number): TtlCache<T> {
       const pending = inflight.get(key);
       if (pending) return pending;
 
-      const p = (async () => {
+      const generation = generations.get(key) ?? 0;
+      let resolvePending!: (value: T) => void;
+      let rejectPending!: (error: unknown) => void;
+      const p = new Promise<T>((resolve, reject) => {
+        resolvePending = resolve;
+        rejectPending = reject;
+      });
+      // loader를 부르기 전에 등록한다. loader가 동기로 throw하거나 즉시 reject해도
+      // finally가 삭제할 대상이 이미 존재하므로 inflight가 고착되지 않는다.
+      inflight.set(key, p);
+      void (async () => {
         try {
-          const value = await loader();
-          entries.set(key, { value, at: Date.now() });
-          return value;
+          const value = await withTimeout(
+            Promise.resolve(loader()),
+            key,
+            options.loadTimeoutMs,
+          );
+          // invalidate/timeout 뒤에 도착한 오래된 loader가 새 cache를 덮지 못하게 한다.
+          if ((generations.get(key) ?? 0) === generation) {
+            entries.set(key, { value, at: Date.now() });
+          }
+          resolvePending(value);
+        } catch (error) {
+          rejectPending(error);
         } finally {
-          inflight.delete(key);
+          if (inflight.get(key) === p) inflight.delete(key);
         }
       })();
-      inflight.set(key, p);
       return p;
     },
     invalidate(key?: string) {
-      if (key === undefined) entries.clear();
-      else entries.delete(key);
+      const invalidateKey = (target: string) => {
+        generations.set(target, (generations.get(target) ?? 0) + 1);
+        entries.delete(target);
+        // 이미 이 Promise를 기다리는 호출자는 결과를 받지만, 다음 get은 새 loader를
+        // 시작한다. generation guard가 늦은 결과의 cache write를 차단한다.
+        inflight.delete(target);
+      };
+      if (key === undefined) {
+        const keys = new Set([
+          ...entries.keys(),
+          ...inflight.keys(),
+          ...generations.keys(),
+        ]);
+        for (const target of keys) invalidateKey(target);
+      } else {
+        invalidateKey(key);
+      }
     },
   };
 }

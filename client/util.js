@@ -40,3 +40,94 @@ export function _relTime(ts) {
   const d = Math.floor(h / 24);
   return `${d}일 전`;
 }
+
+export class FetchTimeoutError extends Error {
+  constructor(url, timeoutMs) {
+    super(`${timeoutMs}ms 안에 응답하지 않았어요`);
+    this.name = "FetchTimeoutError";
+    this.url = String(url);
+    this.timeoutMs = timeoutMs;
+  }
+}
+
+export class HttpResponseError extends Error {
+  constructor(url, status, statusText = "") {
+    super(`HTTP ${status}${statusText ? ` ${statusText}` : ""}`);
+    this.name = "HttpResponseError";
+    this.url = String(url);
+    this.status = status;
+  }
+}
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * 로컬 JSON API 공통 fetch.
+ * - 응답 상태 검증
+ * - 요청 상한 시간
+ * - GET의 일시적 네트워크/5xx 오류 재시도
+ * - 외부 AbortSignal 전달
+ *
+ * `fetchImpl`은 테스트 주입용이며 실제 fetch 옵션에는 전달하지 않는다.
+ */
+export async function fetchJson(url, options = {}) {
+  const {
+    timeoutMs = 15_000,
+    retries = 0,
+    retryDelayMs = 240,
+    fetchImpl = globalThis.fetch,
+    signal: externalSignal,
+    ...fetchOptions
+  } = options;
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetch를 사용할 수 없어요");
+  }
+
+  const method = String(fetchOptions.method ?? "GET").toUpperCase();
+  const maxAttempts = method === "GET" ? Math.max(1, retries + 1) : 1;
+  let lastError;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const controller = new AbortController();
+    let didTimeout = false;
+    const onExternalAbort = () => controller.abort(externalSignal?.reason);
+    if (externalSignal?.aborted) onExternalAbort();
+    else externalSignal?.addEventListener("abort", onExternalAbort, {
+      once: true,
+    });
+    const timer =
+      Number.isFinite(timeoutMs) && timeoutMs > 0
+        ? setTimeout(() => {
+            didTimeout = true;
+            controller.abort();
+          }, timeoutMs)
+        : null;
+
+    try {
+      const response = await fetchImpl(url, {
+        ...fetchOptions,
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new HttpResponseError(url, response.status, response.statusText);
+      }
+      return await response.json();
+    } catch (error) {
+      if (externalSignal?.aborted) throw error;
+      lastError = didTimeout
+        ? new FetchTimeoutError(url, timeoutMs)
+        : error;
+      const retryable =
+        !(lastError instanceof HttpResponseError) ||
+        lastError.status === 429 ||
+        lastError.status >= 500;
+      if (!retryable || attempt + 1 >= maxAttempts) throw lastError;
+      await wait(retryDelayMs * (attempt + 1));
+    } finally {
+      if (timer) clearTimeout(timer);
+      externalSignal?.removeEventListener("abort", onExternalAbort);
+    }
+  }
+
+  throw lastError ?? new Error("요청에 실패했어요");
+}

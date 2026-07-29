@@ -1,10 +1,13 @@
 // spiral-buddy-white client — 마크다운 렌더링 (marked 설정 + sanitize, 공유 모듈)
-// marked는 esm.sh URL 기준 싱글턴이라 여기서 1회 설정하면 모든 import 지점에 적용됨.
+// 렌더러 의존성은 release에 함께 번들한다. CDN 연결이 늦거나 끊겨도
+// app.js module graph가 멈추지 않아 초기 "불러오는 중…" 화면에 고착되지 않는다.
 
-import { marked } from "https://esm.sh/marked@13.0.3";
-import { markedHighlight } from "https://esm.sh/marked-highlight@2.2.1";
-import hljs from "https://esm.sh/highlight.js@11.10.0";
-import DOMPurify from "https://esm.sh/dompurify@3.1.6";
+import {
+  marked,
+  markedHighlight,
+  hljs,
+  DOMPurify,
+} from "./vendor/markdown-deps.js";
 
 marked.use(
   markedHighlight({

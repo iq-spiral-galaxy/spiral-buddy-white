@@ -272,17 +272,22 @@ describe("GET /search", () => {
     assert.deepEqual(body.notes, []); // empty vault
   });
 
-  test("matches chapter by title within a matched roadmap", async () => {
+  test("matches a chapter title even when its roadmap and notes do not match", async () => {
     const app = createApi(baseConfig());
-    // "garbage" only appears in chapter 02 title, not the roadmap name —
-    // but the roadmap is reached via... actually the roadmap won't match
-    // "garbage". So chapter search only runs over candidate roadmaps
-    // (matched roadmaps + roadmaps with matching notes). With no name match
-    // and no notes, there are zero candidate roadmaps -> no chapter hits.
+    // "garbage" only appears in chapter 02's title. Chapter search must not
+    // depend on a roadmap-name or note match to discover it.
     const res = await app.request("/search?q=garbage");
     const body = await res.json();
     assert.deepEqual(body.roadmaps, []);
-    assert.deepEqual(body.chapters, []);
+    assert.deepEqual(body.notes, []);
+    assert.deepEqual(body.chapters, [
+      {
+        roadmapId: "jvm-deep-dive",
+        roadmapName: "jvm-deep-dive",
+        chapterId: "02-y.md",
+        title: "Garbage Collection",
+      },
+    ]);
   });
 
   test("query matching both roadmap name and a chapter id yields chapter hits", async () => {

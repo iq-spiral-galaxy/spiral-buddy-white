@@ -13,7 +13,56 @@ import {
   type DomainDef,
 } from "../src/categories.js";
 import { parseCuratedId, isMetaRepo } from "../src/curated.js";
-import { createTtlCache } from "../src/ttl-cache.js";
+import {
+  CacheLoadTimeoutError,
+  createTtlCache,
+} from "../src/ttl-cache.js";
+import { mapWithConcurrency } from "../src/async-utils.js";
+
+// ───────────────────────────────────────────────
+// async-utils: bounded concurrent map
+// ───────────────────────────────────────────────
+describe("mapWithConcurrency", () => {
+  test("preserves input order while respecting the concurrency limit", async () => {
+    let active = 0;
+    let maxActive = 0;
+    const values = Array.from({ length: 12 }, (_, index) => index);
+    const result = await mapWithConcurrency(values, 3, async (value) => {
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) =>
+        setTimeout(resolve, value % 3 === 0 ? 6 : 1),
+      );
+      active -= 1;
+      return value * 2;
+    });
+    assert.deepEqual(result, values.map((value) => value * 2));
+    assert.equal(maxActive, 3);
+  });
+
+  test("stops scheduling new work after a mapper rejection", async () => {
+    const started: number[] = [];
+    await assert.rejects(
+      () =>
+        mapWithConcurrency(
+          Array.from({ length: 20 }, (_, index) => index),
+          3,
+          async (value) => {
+            started.push(value);
+            if (value === 1) throw new Error("stop");
+            await new Promise((resolve) => setTimeout(resolve, 8));
+            return value;
+          },
+        ),
+      /stop/,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    assert.ok(
+      started.length <= 3,
+      `only the already-started workers may finish; got ${started.length}`,
+    );
+  });
+});
 
 // ───────────────────────────────────────────────
 // text-utils: safeJsonParse
@@ -467,5 +516,60 @@ describe("createTtlCache", () => {
     const v = await cache.get("k", failOnce);
     assert.equal(v, 99);
     assert.equal(calls, 2);
+  });
+
+  test("synchronous loader throw clears inflight so retry can run", async () => {
+    const cache = createTtlCache<number>(10_000);
+    let calls = 0;
+    const loader = () => {
+      calls += 1;
+      if (calls === 1) throw new Error("sync boom");
+      return Promise.resolve(77);
+    };
+    await assert.rejects(() => cache.get("k", loader), /sync boom/);
+    assert.equal(await cache.get("k", loader), 77);
+    assert.equal(calls, 2);
+  });
+
+  test("never-settling loader times out and a retry can start fresh", async () => {
+    const cache = createTtlCache<number>(10_000, { loadTimeoutMs: 20 });
+    let calls = 0;
+    await assert.rejects(
+      () =>
+        cache.get("slow", () => {
+          calls += 1;
+          return new Promise<number>(() => {});
+        }),
+      (error: unknown) =>
+        error instanceof CacheLoadTimeoutError &&
+        error.key === "slow" &&
+        error.timeoutMs === 20,
+    );
+    assert.equal(await cache.get("slow", async () => (++calls, 7)), 7);
+    assert.equal(calls, 2);
+  });
+
+  test("invalidate during inflight prevents a late result from poisoning cache", async () => {
+    const cache = createTtlCache<number>(10_000);
+    let resolveOld!: (value: number) => void;
+    const old = cache.get(
+      "k",
+      () =>
+        new Promise<number>((resolve) => {
+          resolveOld = resolve;
+        }),
+    );
+
+    cache.invalidate("k");
+    const fresh = await cache.get("k", async () => 2);
+    assert.equal(fresh, 2);
+
+    resolveOld(1);
+    assert.equal(await old, 1, "original waiter still receives its own result");
+    assert.equal(
+      await cache.get("k", async () => 99),
+      2,
+      "late old loader must not overwrite the fresh cached value",
+    );
   });
 });

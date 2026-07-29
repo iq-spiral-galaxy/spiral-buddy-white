@@ -27,7 +27,7 @@ async function init() {
     const det = await window.spiralSetup.detectVault();
     if (det?.found) {
       vaultDetected.classList.remove("hidden");
-      vaultDetected.innerHTML = `💡 자동 감지: <code>${det.path}</code> — 클릭해서 사용`;
+      vaultDetected.innerHTML = `자동 감지: <code>${det.path}</code> — 클릭해서 사용`;
       vaultDetected.addEventListener(
         "click",
         () => {
@@ -86,11 +86,11 @@ window.spiralCurated?.onProgress((p) => {
     const pct = p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
     progressFill.style.width = `${pct}%`;
     downloadProgress.textContent = p.current
-      ? `[${p.done}/${p.total}] ${p.current}${p.skipped ? ` · skip ${p.skipped}` : ""}`
+      ? `[${p.done}/${p.total}] ${p.current}${p.skipped ? ` · 건너뜀 ${p.skipped}` : ""}`
       : `${p.total}개 레포 시도 시작…`;
   } else if (p.phase === "done") {
     progressFill.style.width = "100%";
-    downloadProgress.textContent = `✓ 완료 — 새로 ${p.done - (p.failed ?? 0) - (p.skipped ?? 0)}개, skip ${p.skipped ?? 0}개, 실패 ${p.failed ?? 0}개`;
+    downloadProgress.textContent = `완료 — 새로 ${p.done - (p.failed ?? 0) - (p.skipped ?? 0)}개, 건너뜀 ${p.skipped ?? 0}개, 실패 ${p.failed ?? 0}개`;
   }
 });
 
@@ -151,7 +151,7 @@ async function _runPreset(presetId, presetLabel) {
   }
   if (
     !confirm(
-      `${presetLabel}\n받을 레포: ${missing.length}개 (이미 받은 ${want.length - missing.length}개 skip)\n위치: ${parent}\n\n진행할까요?`,
+      `${presetLabel}\n받을 저장소: ${missing.length}개 (이미 받은 ${want.length - missing.length}개 건너뜀)\n위치: ${parent}\n\n진행할까요?`,
     )
   )
     return;

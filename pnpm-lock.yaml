@@ -20,6 +20,9 @@ importers:
       chalk:
         specifier: ^5.3.0
         version: 5.6.2
+      dompurify:
+        specifier: 3.1.6
+        version: 3.1.6
       dotenv:
         specifier: ^16.4.5
         version: 16.6.1
@@ -29,9 +32,18 @@ importers:
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3
+      highlight.js:
+        specifier: 11.10.0
+        version: 11.10.0
       hono:
         specifier: ^4.6.14
         version: 4.12.20
+      marked:
+        specifier: 13.0.3
+        version: 13.0.3
+      marked-highlight:
+        specifier: 2.2.1
+        version: 2.2.1(marked@13.0.3)
       open:
         specifier: ^10.1.0
         version: 10.2.0
@@ -51,6 +63,9 @@ importers:
       electron-builder:
         specifier: ^24.13.3
         version: 24.13.3(electron-builder-squirrel-windows@24.13.3)
+      esbuild:
+        specifier: 0.28.0
+        version: 0.28.0
       tsx:
         specifier: ^4.19.2
         version: 4.22.3
@@ -768,6 +783,9 @@ packages:
     os: [darwin]
     hasBin: true
 
+  dompurify@3.1.6:
+    resolution: {integrity: sha512-cTOAhc36AalkjtBpfG6O8JimdTMWNXjiePT2xQH/ppBGi/4uIpmj8eKyIkMJErXWARyINV/sB38yf8JCLF5pbQ==}
+
   dotenv-expand@5.1.0:
     resolution: {integrity: sha512-YXQl1DSa4/PQyRfgrv6aoNjhasp/p4qs9FjJ4q4cQk+8m4r6k4ZSiEyytKG8f8W9gi8WsQtIObNmKd+tMzNTmA==}
 
@@ -1046,6 +1064,10 @@ packages:
     resolution: {integrity: sha512-ej4AhfhfL2Q2zpMmLo7U1Uv9+PyhIZpgQLGT1F9miIGmiCJIoCgSmczFdrc97mWT4kVY72KA+WnnhJ5pghSvSg==}
     engines: {node: '>= 0.4'}
 
+  highlight.js@11.10.0:
+    resolution: {integrity: sha512-SYVnVFswQER+zu1laSya563s+F8VDGt7o35d4utbamowvUNLLMovFqwCLSocpZTz3MgaSRA1IbqRWZv97dtErQ==}
+    engines: {node: '>=12.0.0'}
+
   hono@4.12.20:
     resolution: {integrity: sha512-mOdYP1JU3//KG4ukutyI5zi2LOjTGMTVwpdaEi+tg2s+Cn2zx8Q1+/b3Xr1f5ynCWophNNTwY6xRzcCTT5W2kA==}
     engines: {node: '>=16.9.0'}
@@ -1246,6 +1268,16 @@ packages:
   lru-cache@6.0.0:
     resolution: {integrity: sha512-Jo6dJ04CmSjuznwJSS3pUeWmd/H0ffTlkXXgwZi+eq1UCmqQwCh+eLsYOYCwY991i2Fah4h1BEMCx4qThGbsiA==}
     engines: {node: '>=10'}
+
+  marked-highlight@2.2.1:
+    resolution: {integrity: sha512-SiCIeEiQbs9TxGwle9/OwbOejHCZsohQRaNTY2u8euEXYt2rYUFoiImUirThU3Gd/o6Q1gHGtH9qloHlbJpNIA==}
+    peerDependencies:
+      marked: '>=4 <16'
+
+  marked@13.0.3:
+    resolution: {integrity: sha512-rqRix3/TWzE9rIoFGIn8JmsVfhiuC8VIQ8IdX5TfzmeBucdY05/0UlzKaw0eVtpcN/OdVFpBk7CjKGo9iHJ/zA==}
+    engines: {node: '>= 18'}
+    hasBin: true
 
   matcher@3.0.0:
     resolution: {integrity: sha512-OkeDaAZ/bQCxeFAozM55PKcKU0yJMPGifLwV4Qgjitu+5MoAfSQN4lsLJeXZ1b8w0x+/Emda6MZgXS1jvsapng==}
@@ -2504,6 +2536,8 @@ snapshots:
       verror: 1.10.1
     optional: true
 
+  dompurify@3.1.6: {}
+
   dotenv-expand@5.1.0: {}
 
   dotenv@16.6.1: {}
@@ -2889,6 +2923,8 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
+  highlight.js@11.10.0: {}
+
   hono@4.12.20: {}
 
   hosted-git-info@4.1.0:
@@ -3068,6 +3104,12 @@ snapshots:
   lru-cache@6.0.0:
     dependencies:
       yallist: 4.0.0
+
+  marked-highlight@2.2.1(marked@13.0.3):
+    dependencies:
+      marked: 13.0.3
+
+  marked@13.0.3: {}
 
   matcher@3.0.0:
     dependencies:

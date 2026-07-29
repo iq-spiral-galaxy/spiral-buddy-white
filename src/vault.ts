@@ -3,6 +3,7 @@ import path from "node:path";
 import { glob } from "glob";
 import matter from "gray-matter";
 import { createTtlCache } from "./ttl-cache.js";
+import { mapWithConcurrency } from "./async-utils.js";
 
 export interface SpiralNote {
   filePath: string;
@@ -19,6 +20,8 @@ export interface SpiralNote {
   /** v0.5.22+: 상위 레포 (옛 노트는 roadmapId에서 추출). */
   repo: string | null;
   date: string;
+  /** 실제 파일 수정 시각. 같은 날짜의 세션 순서를 정확히 복원하는 데 사용. */
+  modifiedAt: string;
   depth: number;
   tags: string[];
   summary: string;
@@ -31,12 +34,15 @@ export interface SpiralNote {
 const SPIRAL_DIR =
   process.env.SPIRAL_VAULT_SUBDIR?.trim() || "spiral-buddy-white";
 const TRASH_DIR = ".trash";
+const NOTE_READ_CONCURRENCY = 16;
 
 // v0.5.76 — 매 API 요청(/roadmaps, /chapters, /activity, /history, /search)
 // 마다 vault 전체를 glob+read하던 비용 제거. 노트 변경은 이 프로세스가
 // 직접 수행(writeNewNote/moveNotesToTrash/restoreFromTrash)하므로 그때
 // invalidate. 외부에서 vault를 고치는 경우는 30초 TTL이 안전망.
-const notesCache = createTtlCache<SpiralNote[]>(30_000);
+const notesCache = createTtlCache<SpiralNote[]>(30_000, {
+  loadTimeoutMs: 60_000,
+});
 
 export function invalidateNotesCache(): void {
   notesCache.invalidate();
@@ -68,15 +74,16 @@ async function listSpiralNotesUncached(
     nodir: true,
   });
 
-  const notes: SpiralNote[] = [];
-  for (const rel of files) {
-    const abs = path.join(spiralRoot, rel);
-    const note = await readNote(abs, rel);
-    if (note) notes.push(note);
-  }
-  // date desc, 동일 날짜는 relativePath로 안정 정렬(결정성).
+  const loaded = await mapWithConcurrency(
+    files,
+    NOTE_READ_CONCURRENCY,
+    (rel) => readNote(path.join(spiralRoot, rel), rel),
+  );
+  const notes = loaded.filter((note): note is SpiralNote => note !== null);
+  // 실제 수정 시각 내림차순. 같은 날 여러 세션도 정확한 최근 순서를 유지한다.
   notes.sort(
     (a, b) =>
+      b.modifiedAt.localeCompare(a.modifiedAt) ||
       b.date.localeCompare(a.date) ||
       a.relativePath.localeCompare(b.relativePath),
   );
@@ -115,7 +122,7 @@ async function readNote(
   relativePath: string,
 ): Promise<SpiralNote | null> {
   try {
-    const parsed = await readFrontmatter(abs);
+    const [parsed, stat] = await Promise.all([readFrontmatter(abs), fs.stat(abs)]);
     const fm = parsed.data as Record<string, unknown>;
     // 새 스키마 (v0.5.22+): chapter, repo, roadmap 우선. 옛 스키마 (title/topic/chapter_id/roadmap_id) 호환.
     const newChapter = (fm.chapter as string | undefined) ?? null;
@@ -151,6 +158,7 @@ async function readNote(
       roadmapName: inferredRoadmapName ?? (fm.roadmap as string | undefined) ?? null,
       repo: inferredRepo ?? null,
       date: formatDate(fm.date),
+      modifiedAt: stat.mtime.toISOString(),
       depth: typeof fm.depth === "number" ? fm.depth : 1,
       tags: Array.isArray(fm.tags) ? (fm.tags as string[]) : [],
       summary: (fm.summary as string | undefined) ?? "",
@@ -400,7 +408,7 @@ export function noteBelongsToRoadmap(
 }
 
 /**
- * 노트들을 vault의 spiral-buddy/.trash/로 이동.
+ * 노트들을 현재 워크스페이스 노트 폴더의 .trash/로 이동.
  * fs.unlink 대신 rename을 써서 사용자가 vault에서 직접 복구 가능.
  * 파일명 충돌 시 timestamp prefix로 회피.
  *

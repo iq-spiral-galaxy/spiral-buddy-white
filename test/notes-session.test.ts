@@ -56,6 +56,7 @@ function makeNote(over: Partial<SpiralNote> = {}): SpiralNote {
     body: "본문 내용".repeat(50),
     depth: 1,
     date: "2026-01-01",
+    modifiedAt: "2026-01-01T00:00:00.000Z",
     relativePath: "spiral-buddy/2026-01-01-acid-d1.md",
     filePath: "/vault/spiral-buddy/2026-01-01-acid-d1.md",
     chapterId: "01-acid.md",

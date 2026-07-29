@@ -87,9 +87,11 @@ export async function startServer(): Promise<{ url: string; port: number }> {
   // EADDRINUSE(:::PORT) 크래시. 같은 앱(예: Green)을 두 번 켜면 발생.
   // 검사·연결(waitForServer)·창 로딩이 모두 127.0.0.1이므로 여기서 통일.
   // 부가 효과: 로컬 전용 앱의 외부 네트워크 노출 제거 (보안↑).
-  serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, async () => {
+  serve({ fetch: app.fetch, port, hostname: "127.0.0.1" }, () => {
+    void (async () => {
+      try {
     console.log();
-    console.log(chalk.bold.cyan("  🌀 spiral-buddy-white"));
+    console.log(chalk.bold.magenta("  🌀 spiral-buddy-white"));
     console.log(chalk.gray("  spiral learning · Claude × Obsidian"));
     console.log();
     console.log(
@@ -160,6 +162,20 @@ export async function startServer(): Promise<{ url: string; port: number }> {
     console.log();
     console.log(chalk.green(`  → ${url}`));
     console.log();
+      } catch (error) {
+        // listen 콜백의 반환 Promise는 @hono/node-server가 await하지 않는다.
+        // iCloud/네트워크 드라이브 진단 scan timeout이 unhandled rejection으로
+        // Electron main을 종료하지 않게, 시작 로그 실패는 기록만 하고 서버는 유지한다.
+        console.error(
+          chalk.yellow(
+            `  startup scan skipped: ${error instanceof Error ? error.message : String(error)}`,
+          ),
+        );
+        console.log();
+        console.log(chalk.green(`  → ${url}`));
+        console.log();
+      }
+    })();
   });
 
   if (process.env.NO_OPEN !== "1") {

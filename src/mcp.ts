@@ -1,7 +1,7 @@
 /**
  * spiral-buddy-white MCP server (Phase 2)
  *
- * Claude Desktop에서 spiral-buddy의 로드맵/노트/vault를 도구로 사용 가능.
+ * Claude Desktop에서 Spiral Buddy White의 로드맵/노트/vault를 도구로 사용 가능.
  * stdio 전송 — stdout은 MCP 프로토콜 채널이므로 console.log 사용 금지.
  *
  * Phase 2 변경점:
@@ -56,6 +56,11 @@ async function main() {
   }
 
   const vaultPath = config.vaultPath;
+  // Electron은 활성 workspace의 명시된 vaultSubDir를 환경변수로 전달한다.
+  // 값을 임의로 White 기본값으로 덮어쓰지 않아 기존 workspace 노트 경로를 보존한다.
+  const vaultSubDir =
+    process.env.SPIRAL_VAULT_SUBDIR?.trim() || "spiral-buddy-white";
+  const notesRoot = path.join(vaultPath, vaultSubDir);
 
   // getInstalledRoadmaps / resolveRoadmap 는 ./roadmap-service.js 로 분리됨 (routes와 공유).
   // (이전 mcp 전용 resolveRoadmapByIdOrName == resolveRoadmap, null 분기만 미사용)
@@ -357,7 +362,7 @@ async function main() {
       title: "챕터 본문 + 이전 학습 노트 (세션 시작용)",
       description:
         "특정 챕터에 대한 학습 세션을 시작하기 직전 호출하세요. " +
-        "챕터 원문과 이 챕터에 대한 이전 spiral-buddy 노트들을 함께 반환합니다. " +
+        "챕터 원문과 이 챕터에 대한 이전 학습 노트들을 함께 반환합니다. " +
         "응답에 포함된 `nextDepth` 값이 이번 세션의 depth — 1이면 첫 학습, 2 이상이면 spiral 복귀 세션입니다. " +
         "이전 노트의 '헷갈렸던 / 확인이 필요한 지점' 섹션이 이번 세션의 진입점입니다.",
       inputSchema: {
@@ -462,9 +467,9 @@ async function main() {
   server.registerTool(
     "spiral_list_notes",
     {
-      title: "이전 spiral-buddy 노트 인덱스",
+      title: "이전 학습 노트 인덱스",
       description:
-        "vault에 저장된 spiral-buddy 노트들의 메타데이터를 최신순으로 반환합니다. " +
+        "현재 White 워크스페이스에 저장된 학습 노트 메타데이터를 최신순으로 반환합니다. " +
         "본문은 포함되지 않습니다 — 본문이 필요하면 spiral_read_note 호출. " +
         "특정 로드맵으로만 필터링하려면 roadmap_id 지정.",
       inputSchema: {
@@ -533,9 +538,9 @@ async function main() {
   server.registerTool(
     "spiral_read_note",
     {
-      title: "spiral-buddy 노트 본문 읽기",
+      title: "학습 노트 본문 읽기",
       description:
-        "특정 spiral-buddy 노트의 전체 본문(frontmatter 포함)을 반환합니다. " +
+        "현재 White 워크스페이스의 특정 학습 노트 전체 본문(frontmatter 포함)을 반환합니다. " +
         "spiral_list_notes에서 얻은 relativePath를 그대로 넘기세요. " +
         "cross-link 추론 시 관련 노트의 '메커니즘 (3인칭)', '설명적 간극', '헷갈렸던 / 확인이 필요한 지점' 섹션을 직접 확인하는 용도.",
       inputSchema: {
@@ -545,7 +550,16 @@ async function main() {
       },
     },
     async ({ relative_path }) => {
-      const filePath = path.join(vaultPath, "spiral-buddy-white", relative_path);
+      const filePath = path.resolve(notesRoot, relative_path);
+      if (
+        filePath !== notesRoot &&
+        !filePath.startsWith(notesRoot + path.sep)
+      ) {
+        return {
+          content: [{ type: "text", text: "노트 경로가 워크스페이스 범위를 벗어납니다." }],
+          isError: true,
+        };
+      }
       try {
         const content = await fs.readFile(filePath, "utf-8");
         return { content: [{ type: "text", text: content }] };
@@ -618,7 +632,7 @@ async function main() {
       const { missing, patchedBody } = validateAndPatchSections(body);
 
       const relatedAbs = (related_note_paths ?? []).map((rp) =>
-        path.join(vaultPath, "spiral-buddy-white", rp),
+        path.join(notesRoot, rp),
       );
 
       // roadmap.id (예: "unit-testing/anatomy-of-good-tests") → repo + roadmap path
@@ -674,7 +688,7 @@ async function main() {
     {
       title: "학습 노트 삭제 (vault의 .trash/로 이동, 복구 가능)",
       description:
-        "특정 챕터 또는 로드맵의 노트를 vault의 spiral-buddy/.trash/로 이동합니다. fs.unlink가 아니라 rename이라 사용자가 직접 복구 가능합니다. " +
+        "특정 챕터 또는 로드맵의 노트를 현재 White 워크스페이스의 .trash/로 이동합니다. fs.unlink가 아니라 rename이라 사용자가 직접 복구 가능합니다. " +
         "범위 결정:\n" +
         "- chapter_id 있으면: 그 챕터만\n" +
         "- chapter_id 없으면: roadmap의 모든 챕터\n" +
@@ -885,6 +899,7 @@ async function main() {
       `  roadmap root: ${config.roadmapRoot ?? "(unset)"}\n` +
       `  curated org:  ${config.curatedOrg ?? "(disabled)"}\n` +
       `  vault:        ${vaultPath}\n` +
+      `  notes folder: ${notesRoot}\n` +
       `  installed:    ${roadmaps.length} roadmaps (local: ${local}, curated: ${curated})\n`,
   );
 }

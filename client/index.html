@@ -8,72 +8,84 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&amp;family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
     />
     <link rel="stylesheet" href="/styles.css" />
     <link
       rel="stylesheet"
-      href="https://cdn.jsdelivr.net/npm/highlight.js@11.10.0/styles/github-dark.min.css"
+      href="/vendor/highlight-github.css"
     />
+    <link rel="stylesheet" href="/white-brand.css?v=0.6.10" />
+    <link rel="stylesheet" href="/helix.css?v=0.6.10" />
   </head>
-  <body>
+  <body class="dark-mode">
+    <svg class="blue-symbol-library" width="0" height="0" aria-hidden="true" focusable="false">
+      <defs>
+        <path
+          id="blue-organic-loop"
+          d="M 86 96 C 264 22 748 26 906 148 C 1015 232 990 515 840 626 C 660 758 286 700 116 574 C -8 481 -26 220 86 96 Z"
+        />
+        <g id="blue-vortex-stack">
+          <use href="#blue-organic-loop" opacity=".22" transform="translate(500 360) rotate(-14) scale(1) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".28" transform="translate(506 356) rotate(-7) scale(.91 .89) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".35" transform="translate(512 352) rotate(0) scale(.82 .79) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".42" transform="translate(519 348) rotate(8) scale(.73 .69) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".5" transform="translate(526 344) rotate(17) scale(.64 .6) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".58" transform="translate(533 340) rotate(27) scale(.55 .51) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".66" transform="translate(540 336) rotate(38) scale(.47 .43) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".74" transform="translate(546 333) rotate(50) scale(.39 .35) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".81" transform="translate(551 330) rotate(63) scale(.31 .28) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".88" transform="translate(555 328) rotate(77) scale(.24 .21) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity=".94" transform="translate(558 326) rotate(92) scale(.18 .15) translate(-500 -360)" />
+          <use href="#blue-organic-loop" opacity="1" transform="translate(560 324) rotate(108) scale(.12 .1) translate(-500 -360)" />
+        </g>
+        <symbol id="blue-welcome-geometry" viewBox="0 0 1000 720">
+          <g
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <use class="blue-vortex-band" href="#blue-vortex-stack" stroke-width="24" opacity=".11" />
+            <use class="blue-vortex-line" href="#blue-vortex-stack" stroke-width="4.2" opacity=".82" />
+          </g>
+        </symbol>
+      </defs>
+    </svg>
     <aside id="sidebar">
       <header class="brand">
         <div class="brand-row">
           <div class="logo-spiral" aria-hidden="true">
             <svg viewBox="0 0 64 64" width="40" height="40">
-              <defs>
-                <radialGradient id="spiral-glow" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stop-color="#ec4899" stop-opacity="0.6" />
-                  <stop offset="60%" stop-color="#ec4899" stop-opacity="0.12" />
-                  <stop offset="100%" stop-color="#ec4899" stop-opacity="0" />
-                </radialGradient>
-                <linearGradient id="spiral-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="#ec4899" />
-                  <stop offset="50%" stop-color="#f472b6" />
-                  <stop offset="100%" stop-color="#db2777" />
-                </linearGradient>
-              </defs>
-              <circle cx="32" cy="32" r="30" fill="url(#spiral-glow)" class="spiral-glow-pulse" />
               <g class="spiral-rotate">
                 <path
+                  class="spiral-line"
+                  pathLength="100"
                   d="M32 32 m0 0 a3 3 0 0 1 6 0 a6 6 0 0 1 -12 0 a9 9 0 0 1 18 0 a12 12 0 0 1 -24 0 a15 15 0 0 1 30 0 a18 18 0 0 1 -36 0 a21 21 0 0 1 42 0"
                   fill="none"
-                  stroke="url(#spiral-stroke)"
+                  stroke="currentColor"
                   stroke-width="2.5"
                   stroke-linecap="round"
                 />
-                <circle cx="32" cy="32" r="2" fill="#ec4899" class="spiral-center-pulse" />
+                <circle cx="32" cy="32" r="2" fill="currentColor" class="spiral-center-pulse" />
+                <circle cx="53" cy="32" r="1.7" fill="currentColor" class="spiral-flow-dot" />
               </g>
             </svg>
           </div>
           <div class="brand-text">
-            <h1 class="brand-title">Spiral Buddy White</h1>
+            <h1 class="brand-title">
+              <span>Spiral Buddy</span>
+              <span class="brand-edition">White</span>
+            </h1>
+            <p class="brand-subtitle">나선형 학습 노트</p>
           </div>
         </div>
       </header>
 
-      <section class="workspace-selector" id="workspace-section">
-        <h2>Workspace</h2>
-        <button id="workspace-current" class="workspace-current" title="워크스페이스 전환">
-          <span class="workspace-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 3.5 19 7.4v7.2l-7 3.9-7-3.9V7.4l7-3.9Z" />
-              <path d="m5 7.4 7 3.9 7-3.9" />
-              <path d="M12 11.3v7.2" />
-              <path d="M8.5 9.3v3.9l3.5 2 3.5-2V9.3" />
-            </svg>
-          </span>
-          <span class="workspace-name" id="workspace-name">loading…</span>
-          <span class="caret">▼</span>
-        </button>
-        <div id="workspace-list" class="workspace-list hidden"></div>
-      </section>
-
-      <section class="sidebar-search-section">
+      <section class="sidebar-search-section" role="search" aria-label="챕터 찾기">
         <div class="sidebar-search-wrap">
           <span class="sidebar-search-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="7"/>
               <line x1="21" y1="21" x2="16.65" y2="16.65"/>
             </svg>
@@ -82,12 +94,15 @@
             id="sidebar-search"
             class="sidebar-search-input"
             type="search"
-            placeholder="레포 · 카테고리 · 챕터 검색…"
+            placeholder="챕터 찾기"
             autocomplete="off"
             spellcheck="false"
-            aria-label="사이드바 검색"
+            aria-label="챕터 찾기"
+            aria-controls="roadmap-list chapter-list"
+            aria-describedby="sidebar-search-meta"
+            aria-keyshortcuts="Meta+F Control+F"
           />
-          <kbd class="sidebar-search-kbd" aria-hidden="true">⌘F</kbd>
+          <kbd id="sidebar-search-kbd" class="sidebar-search-kbd" aria-hidden="true">⌘ F</kbd>
           <button id="sidebar-search-clear" class="sidebar-search-clear hidden" type="button" aria-label="검색어 지우기" title="검색어 지우기 (Esc)">
             <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"/>
@@ -95,20 +110,23 @@
             </svg>
           </button>
         </div>
-        <div id="sidebar-search-meta" class="sidebar-search-meta hidden"></div>
+        <div id="sidebar-search-meta" class="sidebar-search-meta hidden" role="status" aria-live="polite"></div>
       </section>
 
       <section class="roadmap-selector" id="roadmap-section">
-        <h2>Roadmap</h2>
-        <button id="roadmap-current" class="roadmap-current">
-          <span class="roadmap-name">loading…</span>
+        <h2>현재 경로</h2>
+        <button
+          id="roadmap-current"
+          class="roadmap-current"
+          type="button"
+          aria-controls="roadmap-list"
+          aria-expanded="false"
+          title="현재 학습 위치 펼쳐 보기"
+        >
+          <span class="roadmap-name">불러오는 중…</span>
           <span class="caret">▼</span>
         </button>
         <div id="roadmap-list" class="roadmap-list hidden"></div>
-      </section>
-
-      <section class="suggestion" id="suggestion-box">
-        <div class="loading">🧭 Analyzing trajectory…</div>
       </section>
 
       <section class="paused-section hidden" id="paused-section">
@@ -119,23 +137,26 @@
               <rect x="14" y="4" width="4" height="16"/>
             </svg>
           </span>
-          Paused
+          잠시 멈춘 학습
           <span class="paused-count-badge" id="paused-count-badge">0</span>
         </h2>
         <ul id="paused-list" class="paused-list" role="list"></ul>
       </section>
 
       <section class="chapters">
-        <h2>Chapters</h2>
+        <h2>
+          <span>학습 경로</span>
+          <span id="chapter-progress-summary" class="section-summary" aria-live="polite"></span>
+        </h2>
         <ol id="chapter-list" class="list">
-          <li class="loading">loading…</li>
+          <li class="loading">불러오는 중…</li>
         </ol>
       </section>
 
       <section class="history">
-        <h2>Past sessions</h2>
+        <h2>최근 노트</h2>
         <ol id="history-list" class="list">
-          <li class="loading">loading…</li>
+          <li class="loading">불러오는 중…</li>
         </ol>
       </section>
 
@@ -181,11 +202,12 @@
       </section>
     </aside>
 
-    <div id="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="사이드바 너비 조절"></div>
+    <button id="sidebar-scrim" class="sidebar-scrim" type="button" tabindex="-1" aria-label="학습 경로 닫기"></button>
+    <div id="sidebar-resizer" role="separator" tabindex="0" aria-orientation="vertical" aria-label="사이드바 너비 조절" aria-valuemin="280" aria-valuemax="420" aria-valuenow="320"></div>
 
     <main id="main">
       <header id="topbar">
-        <button id="sidebar-toggle" class="sidebar-toggle" title="사이드바 토글 (Cmd+B)" aria-label="사이드바 토글">
+        <button id="sidebar-toggle" class="sidebar-toggle" title="학습 경로 토글 (Cmd+B)" aria-label="학습 경로 토글" aria-controls="sidebar" aria-expanded="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
             <line x1="9" y1="3" x2="9" y2="21"/>
@@ -193,28 +215,36 @@
         </button>
         <div id="current-chapter"></div>
         <div id="actions">
+          <button id="command-search-btn" class="action-btn command-search-btn" type="button" title="전체 학습 검색 (Cmd+K)" aria-label="전체 학습 검색">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"/>
+              <line x1="20" y1="20" x2="16.65" y2="16.65"/>
+            </svg>
+            <span>전체 검색</span>
+            <kbd>⌘K</kbd>
+          </button>
           <button id="pause-btn" class="action-btn pause" disabled title="세션 일시정지 — 나중에 이어서" aria-label="세션 일시정지">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="6" y="4" width="4" height="16"/>
               <rect x="14" y="4" width="4" height="16"/>
             </svg>
-            <span>Pause</span>
+            <span>잠시 멈춤</span>
           </button>
-          <button id="quiz-btn" class="action-btn quiz" disabled title="짧은 자가확인 질문 받기">
+          <button id="quiz-btn" class="action-btn quiz" data-quiz-tone="recall" disabled title="짧은 퀴즈로 이해 확인" aria-label="짧은 퀴즈로 이해 확인">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
               <line x1="12" y1="17" x2="12.01" y2="17"/>
               <circle cx="12" cy="12" r="10"/>
             </svg>
-            <span>Quiz</span>
+            <span>퀴즈</span>
           </button>
-          <button id="end-btn" class="action-btn end" disabled title="세션 종료 + 노트 생성">
+          <button id="end-btn" class="action-btn end" disabled title="학습을 마치고 Obsidian에 노트 저장" aria-label="학습을 마치고 노트 저장">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
               <polyline points="17 21 17 13 7 13 7 21"/>
               <polyline points="7 3 7 8 15 8"/>
             </svg>
-            <span>End &amp; Save</span>
+            <span>마치고 저장</span>
           </button>
           <button id="settings-btn" class="action-btn icon-action-btn" title="설정" aria-label="설정">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -222,7 +252,7 @@
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
             </svg>
           </button>
-          <button id="lookup-toggle" class="action-btn icon-action-btn lookup-toggle-btn" title="Look-up — 사이드 학습 카드 (⌘L)" aria-label="Look-up 패널 토글">
+          <button id="lookup-toggle" class="action-btn icon-action-btn lookup-toggle-btn" title="보조 노트 열기 (⌘L)" aria-label="보조 노트 열기" aria-controls="lookup-panel" aria-expanded="false">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
               <line x1="15" y1="3" x2="15" y2="21"/>
@@ -233,10 +263,7 @@
 
       <div id="messages-wrap" class="messages-wrap">
         <div id="messages" class="messages">
-          <div class="placeholder">
-            <p>왼쪽에서 챕터를 골라 세션을 시작하거나,</p>
-            <p><strong>Start with suggestion</strong> 버튼으로 추천 챕터를 시작하세요.</p>
-          </div>
+          <div class="learning-hub-bootstrap" role="status" aria-label="학습 홈 준비 중"></div>
         </div>
         <button id="scroll-bottom-btn" class="scroll-bottom-btn hidden" type="button" title="맨 아래로" aria-label="맨 아래로 스크롤">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -246,7 +273,7 @@
         </button>
       </div>
 
-      <div id="composer-resizer" class="composer-resizer" role="separator" aria-orientation="horizontal" aria-label="입력창 높이 조절" title="드래그하여 입력창 높이 조절 (더블클릭=리셋)"></div>
+      <div id="composer-resizer" class="composer-resizer" role="separator" tabindex="0" aria-orientation="horizontal" aria-label="입력창 높이 조절" aria-valuemin="72" aria-valuemax="480" aria-valuenow="96" title="드래그하거나 방향키로 입력창 높이 조절 (더블클릭=리셋)"></div>
 
       <form id="input-form" class="composer">
         <div class="composer-input-col">
@@ -254,16 +281,17 @@
             id="input"
             rows="3"
             placeholder="세션을 시작하면 입력할 수 있어요"
+            aria-label="학습 대화 입력"
             disabled
           ></textarea>
           <div id="refine-bar" class="refine-bar hidden" role="status" aria-live="polite">
             <span class="refine-bar-icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 2 L10.5 6.5 L15 8 L10.5 9.5 L9 14 L7.5 9.5 L3 8 L7.5 6.5 Z"/>
-                <path d="M18 13 l1 3 l3 1 l-3 1 l-1 3 l-1 -3 l-3 -1 l3 -1 z"/>
+                <path d="M12 20h9"/>
+                <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
               </svg>
             </span>
-            <span class="refine-bar-text">프롬프트가 다듬어졌어요</span>
+            <span class="refine-bar-text">문장을 다듬었어요</span>
             <button type="button" id="refine-undo" class="refine-bar-undo" title="원본으로 되돌리기 (⌘Z)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <polyline points="9 14 4 9 9 4"/>
@@ -282,46 +310,48 @@
             </svg>
             <span>음성</span>
           </button>
-          <button type="button" id="refine-btn" class="refine-btn" disabled title="프롬프트 다듬기 (⌘J) — 보내면서 다듬으려면 ⌘⇧↵">
+          <button type="button" id="refine-btn" class="refine-btn" disabled aria-busy="false" title="다듬기 (⌘J) — 다듬어서 보내려면 ⌘⇧↵">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M9 2 L10.5 6.5 L15 8 L10.5 9.5 L9 14 L7.5 9.5 L3 8 L7.5 6.5 Z"/>
-              <path d="M18 13 l1 3 l3 1 l-3 1 l-1 3 l-1 -3 l-3 -1 l3 -1 z"/>
+              <path d="M12 20h9"/>
+              <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>
             </svg>
             <span>다듬기</span>
           </button>
-          <button type="submit" id="send-btn" class="send-btn" disabled>
+          <button type="submit" id="send-btn" class="send-btn" disabled aria-busy="false">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <line x1="22" y1="2" x2="11" y2="13"/>
               <polygon points="22 2 15 22 11 13 2 9 22 2"/>
             </svg>
-            <span>Send</span>
+            <span>보내기</span>
           </button>
         </div>
         <div id="mic-guide" class="mic-guide hidden" role="dialog" aria-label="음성 입력 안내"></div>
       </form>
 
-      <div id="status-bar" class="status-bar"></div>
+      <div id="status-bar" class="status-bar" role="status" aria-live="polite"></div>
     </main>
 
-    <div id="lookup-resizer" class="lookup-resizer hidden" role="separator" aria-orientation="vertical" aria-label="Look-up 패널 너비 조절"></div>
+    <div id="lookup-resizer" class="lookup-resizer hidden" role="separator" tabindex="0" aria-orientation="vertical" aria-label="보조 노트 너비 조절" aria-valuemin="280" aria-valuemax="520" aria-valuenow="380"></div>
 
-    <aside id="lookup-panel" class="lookup-panel hidden" aria-hidden="true">
+    <aside id="lookup-panel" class="lookup-panel hidden" aria-hidden="true" aria-label="보조 노트">
       <header class="lookup-panel-header">
-        <span class="lookup-panel-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 12 m0 0 a1 1 0 0 1 2 0 a2 2 0 0 1 -4 0 a3 3 0 0 1 6 0 a4 4 0 0 1 -8 0 a5 5 0 0 1 10 0"/>
-          </svg>
-        </span>
-        <h3>Look-up</h3>
-        <button id="lookup-expand" class="lookup-panel-mini icon-btn" type="button" title="전체화면 토글" aria-label="전체화면 토글">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polyline points="15 3 21 3 21 9"/>
-            <polyline points="9 21 3 21 3 15"/>
-            <line x1="21" y1="3" x2="14" y2="10"/>
-            <line x1="3" y1="21" x2="10" y2="14"/>
-          </svg>
-        </button>
-        <button id="lookup-clear" class="lookup-panel-mini" type="button" title="모든 카드 지우기">전체 지우기</button>
+        <div class="lookup-panel-actions">
+          <button id="lookup-expand" class="lookup-panel-mini icon-btn" type="button" title="전체화면 토글" aria-label="전체화면 토글">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polyline points="15 3 21 3 21 9"/>
+              <polyline points="9 21 3 21 3 15"/>
+              <line x1="21" y1="3" x2="14" y2="10"/>
+              <line x1="3" y1="21" x2="10" y2="14"/>
+            </svg>
+          </button>
+          <button id="lookup-clear" class="lookup-panel-mini" type="button" title="모든 카드 지우기">전체 지우기</button>
+          <button id="lookup-close" class="lookup-panel-mini icon-btn" type="button" title="보조 노트 닫기" aria-label="보조 노트 닫기">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
       </header>
       <div id="lookup-panel-body-wrap" class="lookup-panel-body-wrap">
         <div id="lookup-panel-body" class="lookup-panel-body"></div>
@@ -332,11 +362,11 @@
           </svg>
         </button>
       </div>
-      <div id="lookup-direct-resizer" class="lookup-direct-resizer" role="separator" aria-orientation="horizontal" aria-label="Look-up 입력 높이 조절" title="드래그하여 입력창 높이 조절 (더블클릭=리셋)"></div>
+      <div id="lookup-direct-resizer" class="lookup-direct-resizer" role="separator" tabindex="0" aria-orientation="horizontal" aria-label="보조 노트 입력 높이 조절" aria-valuemin="60" aria-valuemax="420" aria-valuenow="72" title="드래그하거나 방향키로 입력창 높이 조절 (더블클릭=리셋)"></div>
       <form id="lookup-direct-form" class="lookup-direct-form">
-        <textarea id="lookup-direct-context" class="lookup-direct-context hidden" placeholder="이 키워드를 어떤 맥락에서 알고 싶은지 (선택)..." rows="2"></textarea>
+        <textarea id="lookup-direct-context" class="lookup-direct-context hidden" placeholder="이 키워드를 어떤 맥락에서 알고 싶은지 (선택)..." rows="2" aria-label="추가 문맥"></textarea>
         <div class="lookup-direct-row">
-          <textarea id="lookup-direct-input" class="lookup-direct-input" autocomplete="off" placeholder="키워드/표현 입력 후 Enter…" rows="3"></textarea>
+          <textarea id="lookup-direct-input" class="lookup-direct-input" autocomplete="off" placeholder="키워드나 표현을 입력하세요" rows="3" aria-label="찾아볼 키워드나 표현"></textarea>
           <div class="lookup-direct-col">
             <button type="button" id="lookup-direct-ctx-toggle" class="lookup-direct-mini" title="문맥 추가/감추기" aria-label="문맥 추가">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -355,7 +385,7 @@
       </form>
     </aside>
 
-    <div id="lookup-toolbar" class="lookup-toolbar hidden" role="toolbar" aria-label="선택 텍스트 Look-up">
+    <div id="lookup-toolbar" class="lookup-toolbar hidden" role="toolbar" aria-label="선택 텍스트 보조 패널">
       <button class="lookup-tool-btn" data-depth="concise" type="button" title="1-2문장 핵심만 (빠르게)">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <line x1="4" y1="12" x2="14" y2="12"/>
@@ -403,10 +433,10 @@
 
     <div id="lookup-question-popover" class="lookup-question-popover hidden" role="dialog" aria-label="질문 추가">
       <div class="lookup-question-keyword" id="lookup-question-keyword"></div>
-      <textarea id="lookup-question-text" class="lookup-question-text" rows="3" placeholder="이 표현에 대해 어떤 게 궁금한지 적어주세요 (예: 'WAL이랑 어떻게 다른가?')"></textarea>
+      <textarea id="lookup-question-text" class="lookup-question-text" rows="3" placeholder="이 표현에 대해 어떤 게 궁금한지 적어주세요 (예: 'WAL이랑 어떻게 다른가?')" aria-label="추가 질문"></textarea>
       <div class="lookup-question-actions">
         <button type="button" id="lookup-question-cancel" class="lookup-question-cancel">취소</button>
-        <select id="lookup-question-depth" class="lookup-question-depth">
+        <select id="lookup-question-depth" class="lookup-question-depth" aria-label="답변 깊이">
           <option value="concise">간결</option>
           <option value="medium" selected>중간</option>
           <option value="deep">깊이</option>
@@ -417,20 +447,22 @@
 
     <div id="search-modal" class="modal-overlay hidden" aria-hidden="true">
       <div class="modal search-modal" role="dialog" aria-modal="true" aria-labelledby="search-modal-title">
+        <h2 id="search-modal-title" class="visually-hidden">전체 학습 검색</h2>
         <div class="search-input-wrap">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="search-icon">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="search-icon">
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <input id="search-input" type="text" placeholder="로드맵 · 챕터 · 노트 검색…" autocomplete="off" spellcheck="false" />
-          <kbd class="search-esc-hint">ESC</kbd>
+          <input id="search-input" type="text" role="combobox" placeholder="로드맵 · 챕터 · 노트 검색" autocomplete="off" spellcheck="false" aria-label="학습 검색" aria-controls="search-results" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" />
+          <button id="search-close-btn" class="search-close-btn" type="button" aria-label="검색 닫기" title="검색 닫기 (Esc)">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
         </div>
-        <div id="search-results" class="search-results"></div>
-        <div class="search-footer">
-          <span><kbd>↑</kbd><kbd>↓</kbd> 이동</span>
-          <span><kbd>Enter</kbd> 열기</span>
-          <span><kbd>ESC</kbd> 닫기</span>
-        </div>
+        <div id="search-results" class="search-results" role="listbox" aria-label="검색 결과"></div>
+        <div id="search-status" class="visually-hidden" role="status" aria-live="polite"></div>
       </div>
     </div>
 
@@ -492,22 +524,21 @@
           <h3 id="settings-modal-title">설정</h3>
           <button id="settings-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
         </header>
-        <div class="settings-tabs">
-          <button class="settings-tab active" data-tab="general">일반</button>
-          <button class="settings-tab" data-tab="workspaces">워크스페이스</button>
+        <div id="settings-load-state" class="settings-load-state hidden" role="status" aria-live="polite">
+          <span class="inline-spinner" aria-hidden="true"></span>
+          <span id="settings-load-state-text">설정을 불러오는 중…</span>
+          <button id="settings-load-retry" class="load-retry hidden" type="button">다시 시도</button>
+        </div>
+        <div class="settings-tabs" role="tablist" aria-label="설정 범주">
+          <button id="settings-tab-general" class="settings-tab active" data-tab="general" role="tab" aria-selected="true" aria-controls="settings-panel-general" tabindex="0">일반</button>
+          <button id="settings-tab-workspaces" class="settings-tab" data-tab="workspaces" role="tab" aria-selected="false" aria-controls="settings-panel-workspaces" tabindex="-1">워크스페이스</button>
         </div>
 
-        <div class="settings-panel" data-panel="general">
+        <div id="settings-panel-general" class="settings-panel" data-panel="general" role="tabpanel" aria-labelledby="settings-tab-general">
           <div class="settings-field theme-field">
             <label>테마</label>
             <div class="theme-toggle" role="radiogroup" aria-label="테마 선택">
-              <button type="button" class="theme-opt" data-theme="dark" aria-checked="true">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-                </svg>
-                <span>다크</span>
-              </button>
-              <button type="button" class="theme-opt" data-theme="light" aria-checked="false">
+              <button type="button" class="theme-opt" data-theme="light" role="radio" aria-checked="false" tabindex="-1">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <circle cx="12" cy="12" r="4.5"/>
                   <line x1="12" y1="2" x2="12" y2="4"/>
@@ -519,21 +550,27 @@
                   <line x1="4.93" y1="19.07" x2="6.34" y2="17.66"/>
                   <line x1="17.66" y1="6.34" x2="19.07" y2="4.93"/>
                 </svg>
-                <span>라이트</span>
+                <span>화이트</span>
+              </button>
+              <button type="button" class="theme-opt active" data-theme="dark" role="radio" aria-checked="true" tabindex="0">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                </svg>
+                <span>잉크</span>
               </button>
             </div>
           </div>
           <div class="settings-field motion-field">
             <label>장식 모션</label>
             <div class="motion-toggle" role="radiogroup" aria-label="장식 모션 선택">
-              <button type="button" class="motion-opt" data-motion="off" aria-checked="true">
+              <button type="button" class="motion-opt" data-motion="off" role="radio" aria-checked="true" tabindex="0">
                 <span>끄기</span>
               </button>
-              <button type="button" class="motion-opt" data-motion="on" aria-checked="false">
+              <button type="button" class="motion-opt" data-motion="on" role="radio" aria-checked="false" tabindex="-1">
                 <span>켜기</span>
               </button>
             </div>
-            <div class="settings-hint">로고·뱃지 등의 상시 애니메이션. 끄면 GPU 사용·발열·배터리 소모가 줄어듭니다. (기본: 끄기)</div>
+            <div class="settings-hint">뱃지 등의 추가 장식 애니메이션. 끄면 GPU 사용·발열·배터리 소모가 줄어듭니다. (기본: 끄기)</div>
           </div>
           <div id="update-banner" class="update-banner hidden" role="status">
             <span class="update-banner-icon" aria-hidden="true">
@@ -566,9 +603,9 @@
             <div class="settings-hint">변경 시 앱이 자동 재시작됩니다.</div>
           </div>
 
-          <!-- v0.6 멀티 LLM — AI 프로바이더 (기본: Claude/Anthropic, 기존 동작 무변경) -->
+          <!-- v0.6 멀티 LLM — 학습 엔진 (기본: Claude/Anthropic, 기존 동작 무변경) -->
           <div class="settings-field" id="settings-llm-field">
-            <label>AI 프로바이더</label>
+            <label>학습 엔진</label>
             <div class="settings-row">
               <select id="settings-llm-provider"></select>
               <button id="settings-save-llm" class="settings-save-btn" type="button">저장</button>
@@ -599,20 +636,31 @@
           </div>
         </div>
 
-        <div class="settings-panel hidden" data-panel="workspaces">
+        <div id="settings-panel-workspaces" class="settings-panel hidden" data-panel="workspaces" role="tabpanel" aria-labelledby="settings-tab-workspaces">
+          <div class="settings-workspace-intro">
+            <span>현재 학습 공간</span>
+            <strong id="settings-workspace-active-name">불러오는 중…</strong>
+            <p>학습 공간의 전환·추가·삭제는 이곳에서 관리합니다.</p>
+          </div>
           <div class="settings-workspace-list" id="settings-workspace-list"></div>
 
           <button id="settings-add-workspace-btn" class="settings-add-btn" type="button">
             ＋ 새 워크스페이스 추가
           </button>
 
-          <div class="settings-divider"><span>iq-psyche-lab 학습 자료</span></div>
+          <div class="settings-divider"><span>학습 자료</span></div>
 
           <div id="curated-zone" class="curated-zone">
             <div class="curated-target-row" id="curated-target-row">
               <span class="curated-target-label">받을 위치:</span>
               <code class="curated-target-path" id="curated-target-path">선택되지 않음</code>
-              <button type="button" class="curated-target-use-ws" id="curated-target-use-ws" title="현재 워크스페이스 폴더에 추가 받기 — 기존 진행이 그대로 이어집니다">📍 현재 워크스페이스</button>
+              <button type="button" class="curated-target-use-ws" id="curated-target-use-ws" title="현재 워크스페이스 폴더에 추가 받기 — 기존 진행이 그대로 이어집니다">
+                <svg class="current-workspace-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H9l2 2h7.5A2.5 2.5 0 0 1 21 9.5v7A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z" />
+                  <path d="m9 13 2 2 4-4" />
+                </svg>
+                <span>현재 워크스페이스</span>
+              </button>
               <button type="button" class="curated-target-pick" id="curated-target-pick">선택…</button>
             </div>
             <!-- v0.5.55 — 위치가 현재 워크스페이스와 다를 때만 경고 표시 -->
@@ -632,12 +680,24 @@
             </div>
 
             <div class="curated-presets">
-              <div class="curated-presets-header">⚡ 빠른 시작 — 역할 프리셋</div>
+              <div class="curated-presets-header">
+                <svg class="curated-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M13 2 5 13h6l-1 9 8-12h-6l1-8Z" />
+                </svg>
+                <span>빠른 시작 — 역할 프리셋</span>
+              </div>
               <div class="curated-presets-grid" id="curated-presets-grid"></div>
             </div>
 
             <div class="curated-domains">
-              <div class="curated-domains-header">📚 도메인 골라 받기</div>
+              <div class="curated-domains-header">
+                <svg class="curated-section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="9" />
+                  <ellipse cx="12" cy="12" rx="4" ry="9" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                </svg>
+                <span>도메인 골라 받기</span>
+              </div>
               <div class="curated-domains-list" id="curated-domains-list"></div>
             </div>
           </div>
@@ -648,12 +708,8 @@
             <svg class="wizard-link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M12 12 m0 0 a1 1 0 0 1 2 0 a2 2 0 0 1 -4 0 a3 3 0 0 1 6 0 a4 4 0 0 1 -8 0 a5 5 0 0 1 10 0"/>
             </svg>
-            <span>초기 설정 마법사 다시 열기</span>
+            <span>초기 설정 다시 열기</span>
           </button>
-          <div class="settings-hint" style="margin-top: 4px;">
-            워크스페이스마다 vault 안의 별도 폴더에 노트가 저장되어 섞이지 않습니다.
-            전환은 앱 재시작 후 적용됩니다.
-          </div>
         </div>
       </div>
     </div>
@@ -760,6 +816,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js"></script>
+    <script type="module" src="/app.js?v=0.6.10"></script>
   </body>
 </html>

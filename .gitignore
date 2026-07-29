@@ -10,3 +10,5 @@ coverage/
 .cache/
 release/
 .claude/
+.pnpm-store/
+pnpm-workspace.yaml

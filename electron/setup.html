@@ -301,47 +301,225 @@
         margin-top: 8px; padding: 6px 2px;
       }
       .setup-presets-hint strong { color: rgba(159, 179, 193, 0.95); }
+
+      /* Spiral Buddy White — paper-first setup */
+      :root {
+        color-scheme: light;
+        --bg: #f5f7fb;
+        --bg-elev: #ffffff;
+        --bg-elev-2: #edf2f9;
+        --border: #d8e0eb;
+        --border-soft: #e8edf3;
+        --text: #172033;
+        --text-dim: #5f6d80;
+        --text-faint: #8b96a7;
+        --accent: #1d5bd8;
+        --accent-warm: #1d5bd8;
+        --danger: #c93c45;
+      }
+      html {
+        background: var(--bg);
+      }
+      body {
+        padding: 30px 34px;
+        background: var(--bg);
+        color: var(--text);
+        font-family: Inter, -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Segoe UI", sans-serif;
+      }
+      .setup-brand {
+        align-items: flex-start;
+        gap: 14px;
+        margin: -2px 0 24px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--border);
+      }
+      .setup-logo {
+        width: 42px;
+        height: 42px;
+        color: #ffffff;
+        background: var(--accent);
+        border: 0;
+        border-radius: 13px;
+        box-shadow: none;
+      }
+      .setup-logo svg {
+        width: 34px;
+        height: 34px;
+        filter: none;
+      }
+      h1 {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 0 4px;
+        color: var(--text);
+        font-size: 19px;
+        letter-spacing: -0.02em;
+      }
+      .setup-edition {
+        display: inline-flex;
+        align-items: center;
+        height: 20px;
+        padding: 0 7px;
+        color: #ffffff;
+        background: var(--accent);
+        border-radius: 999px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .lead {
+        color: var(--text-dim);
+        font-size: 11.5px;
+        line-height: 1.55;
+      }
+      label {
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 650;
+      }
+      .hint,
+      .setup-presets-hint,
+      .setup-preset-sub {
+        color: var(--text-dim);
+      }
+      .setup-presets-hint strong {
+        color: var(--text);
+      }
+      .hint a,
+      .vault-detected {
+        color: var(--accent);
+      }
+      input[type="text"],
+      input[type="password"] {
+        min-height: 38px;
+        background: #ffffff;
+        border-color: var(--border);
+        border-radius: 8px;
+        color: var(--text);
+      }
+      input::placeholder {
+        color: var(--text-faint);
+      }
+      input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(29, 91, 216, 0.12);
+      }
+      code {
+        color: #1748aa;
+        background: #edf3ff;
+        border-radius: 4px;
+        padding: 1px 4px;
+      }
+      .pick-btn {
+        background: #ffffff;
+        border-color: var(--border);
+        border-radius: 8px;
+        color: var(--text-dim);
+      }
+      .pick-btn:hover {
+        background: #eef3fb;
+        border-color: #b8c7dc;
+        color: var(--text);
+      }
+      .divider-text {
+        color: var(--text-faint);
+      }
+      .divider-text::before,
+      .divider-text::after {
+        background: var(--border-soft);
+      }
+      .download-card,
+      .setup-preset {
+        background: #ffffff;
+        border-color: var(--border);
+        color: var(--text);
+        box-shadow: none;
+      }
+      .download-card:hover:not(.disabled):not(.downloading):not(.done),
+      .setup-preset:hover:not(:disabled) {
+        background: #f7f9fd;
+        border-color: #9eb6da;
+        box-shadow: none;
+        transform: none;
+      }
+      .download-card-icon {
+        color: var(--accent);
+        background: #edf3ff;
+        border-color: #cad8f0;
+      }
+      .setup-preset.recommended {
+        background: #f3f6fd;
+        border-color: #9fb8e3;
+      }
+      .setup-preset.heavy {
+        border-color: #d8e0eb;
+      }
+      .setup-preset-tag {
+        color: #1748aa;
+        background: #e4edff;
+      }
+      .setup-preset-tag.heavy {
+        color: #76501c;
+        background: #f6eddf;
+      }
+      .setup-preset-emoji {
+        min-width: 22px;
+        color: var(--accent);
+        font-size: 9px;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+      }
+      .progress-bar {
+        background: var(--bg-elev-2);
+      }
+      .progress-fill {
+        background: var(--accent);
+      }
+      .actions {
+        border-top-color: var(--border-soft);
+      }
+      .primary {
+        min-width: 118px;
+        background: var(--accent);
+        border: 1px solid var(--accent);
+        border-radius: 8px;
+        color: #ffffff;
+        box-shadow: none;
+      }
+      .primary:hover:not(:disabled) {
+        background: #1748aa;
+        border-color: #1748aa;
+      }
     </style>
   </head>
   <body>
     <header class="setup-brand">
       <div class="setup-logo" aria-hidden="true">
         <svg viewBox="0 0 64 64" fill="none">
-          <defs>
-            <radialGradient id="setup-spiral-glow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stop-color="#ec4899" stop-opacity="0.6" />
-              <stop offset="60%" stop-color="#ec4899" stop-opacity="0.12" />
-              <stop offset="100%" stop-color="#ec4899" stop-opacity="0" />
-            </linearGradient>
-            <linearGradient id="setup-spiral-stroke" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#ec4899" />
-              <stop offset="50%" stop-color="#f472b6" />
-              <stop offset="100%" stop-color="#db2777" />
-            </linearGradient>
-          </defs>
-          <circle cx="32" cy="32" r="30" fill="url(#setup-spiral-glow)" />
           <path
             d="M32 32 m0 0 a3 3 0 0 1 6 0 a6 6 0 0 1 -12 0 a9 9 0 0 1 18 0 a12 12 0 0 1 -24 0 a15 15 0 0 1 30 0 a18 18 0 0 1 -36 0 a21 21 0 0 1 42 0"
-            stroke="url(#setup-spiral-stroke)"
+            stroke="currentColor"
             stroke-width="2.5"
             stroke-linecap="round"
           />
-          <circle cx="32" cy="32" r="2" fill="#ec4899" />
+          <circle cx="32" cy="32" r="2" fill="currentColor" />
         </svg>
       </div>
       <div>
-        <h1>Spiral Buddy White</h1>
+        <h1>Spiral Buddy <span class="setup-edition">White</span></h1>
         <p class="lead">
-          처음 사용 시 한 번만 설정하면 됩니다. 이 정보는 사용자 디렉토리에 저장되며 외부로 전송되지 않습니다.
+          학습 자료와 기록 공간을 연결해 주세요. 설정은 이 기기에만 저장됩니다.
         </p>
       </div>
     </header>
 
     <div class="field">
-      <label for="api-key">Anthropic API Key</label>
+      <label for="api-key">학습 엔진 연결 키</label>
       <input id="api-key" type="password" placeholder="sk-ant-..." autocomplete="off" />
       <div class="hint">
-        <a id="link-console" data-href="https://console.anthropic.com/settings/keys">console.anthropic.com</a>에서 발급
+        Anthropic API Key · <a id="link-console" data-href="https://console.anthropic.com/settings/keys">console.anthropic.com</a>에서 발급
       </div>
     </div>
 
@@ -400,7 +578,7 @@
     <div class="error" id="error-msg"></div>
 
     <div class="actions">
-      <button class="primary" id="save-btn" type="button">시작하기</button>
+      <button class="primary" id="save-btn" type="button">White 시작하기</button>
     </div>
 
     <script src="setup.js"></script>

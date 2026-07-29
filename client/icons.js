@@ -34,7 +34,17 @@ const CATEGORY_ICON_BY_NAME = {
   "computational mind": "cpu", // 🧩 계산적 마음
   consciousness: "cosmos", // 🌌 의식
   "the self": "mirror", // 🪞 자아
+  query: "search",
+  queries: "search",
+  "sql query": "search",
   uncategorized: "folder",
+};
+
+const ROLE_ICON_BY_ID = {
+  backend: "wrench",
+  frontend: "globe",
+  mobile: "smartphone",
+  fullstack: "dna",
 };
 
 const ICON_SVG = {
@@ -56,9 +66,11 @@ const ICON_SVG = {
   globe: `<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><line x1="3" y1="12" x2="21" y2="12"/>`,
   atom: `<circle cx="12" cy="12" r="1.5"/><ellipse cx="12" cy="12" rx="9" ry="3.5"/><ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(-60 12 12)"/>`,
   android: `<path d="M6 12v6a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-6"/><path d="M5 11.5a7 7 0 0 1 14 0v0.5H5z"/><line x1="8" y1="5" x2="9.5" y2="7"/><line x1="16" y1="5" x2="14.5" y2="7"/><circle cx="9.5" cy="9.5" r="0.6"/><circle cx="14.5" cy="9.5" r="0.6"/><line x1="4" y1="12" x2="4" y2="16"/><line x1="20" y1="12" x2="20" y2="16"/><line x1="9" y1="19" x2="9" y2="22"/><line x1="15" y1="19" x2="15" y2="22"/>`,
-  apple: `<path d="M16 11c0 -2 1.5 -3 1.5 -3s-1.5 -1 -3 0c-0.7 -2.5 -3 -2.5 -4 -2 -1 -0.5 -3.3 -0.5 -4 2 -1.5 -1 -3 0 -3 0s1.5 1 1.5 3c-1 1 -1.5 3 0 6 1 2 3 3 5.5 2 2.5 1 4.5 0 5.5 -2 1.5 -3 1 -5 0 -6Z"/><path d="M12 6c0 -1.5 1 -3 2.5 -3"/>`,
+  apple: `<path fill="currentColor" stroke="none" d="M15.8 2.2c.1 1-.3 2.1-1 2.9-.7.8-1.8 1.4-2.8 1.3-.1-1 .3-2 1-2.8.7-.8 1.9-1.4 2.8-1.4Z"/><path fill="currentColor" stroke="none" d="M19.3 15.9c-.4 1-1 2-1.7 2.9-.9 1.3-1.9 2.4-3.3 2.4-1.2 0-1.7-.8-3.1-.8s-1.9.8-3.1.8c-1.4 0-2.4-1.3-3.3-2.6-2.5-3.6-2.8-7.8-1.2-10.3 1.1-1.8 2.9-2.8 4.6-2.8 1.3 0 2.5.9 3.2.9.8 0 2.2-1.1 3.8-.9.7 0 2.6.3 3.8 2.1-3.3 1.9-2.8 6.4.3 8.3Z"/>`,
   shuffle: `<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>`,
   dna: `<path d="M5 4c14 4 0 12 14 16"/><path d="M19 4c-14 4 0 12 -14 16"/><line x1="7" y1="8" x2="14" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="17" y2="16"/>`,
+  search: `<circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/>`,
+  smartphone: `<rect x="6.5" y="2.5" width="11" height="19" rx="2.2"/><line x1="10" y1="5.5" x2="14" y2="5.5"/><circle cx="12" cy="18.5" r="0.8" fill="currentColor" stroke="none"/>`,
   // v0.5.55 — Backend 도메인용 wrench
   wrench: `<path d="M14.7 6.3a4.5 4.5 0 0 1 5.6 5.6L18 14l-4-4 0.7-2.1z"/><path d="M14 10l-9 9a2 2 0 0 1-3-3l9-9"/>`,
   // ⚪ White / Psyche 도메인 아이콘
@@ -75,18 +87,64 @@ export function svgIcon(name, className = "inline-icon") {
   return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
 }
 
-export function categoryIconHtml(category) {
-  const key = String(category?.name ?? "uncategorized").toLowerCase();
-  const iconName = CATEGORY_ICON_BY_NAME[key] ?? "folder";
-  return `<span class="cat-icon" aria-hidden="true">${svgIcon(iconName, "cat-icon-svg")}</span>`;
+export function resolveIconName(entity, kind = "category") {
+  const explicit = String(entity?.icon ?? "").toLowerCase();
+  if (explicit && ICON_SVG[explicit]) return explicit;
+
+  if (kind === "role") {
+    const roleIcon = ROLE_ICON_BY_ID[String(entity?.id ?? "").toLowerCase()];
+    if (roleIcon) return roleIcon;
+  }
+
+  const candidates = [
+    entity?.name,
+    entity?.category?.name,
+    entity?.domain?.name,
+  ];
+  for (const candidate of candidates) {
+    const normalized = String(candidate ?? "").trim().toLowerCase();
+    if (CATEGORY_ICON_BY_NAME[normalized]) {
+      return CATEGORY_ICON_BY_NAME[normalized];
+    }
+  }
+
+  if (kind === "repo") return "repo";
+  if (kind === "roadmap" && entity?.source === "curated") return "database";
+  return "folder";
+}
+
+export function entityIconHtml(
+  entity,
+  { kind = "category", wrapperClass = "entity-icon" } = {},
+) {
+  const iconName = resolveIconName(entity, kind);
+  return `<span class="${wrapperClass}" aria-hidden="true">${svgIcon(iconName, `${wrapperClass}-svg`)}</span>`;
+}
+
+export function categoryIconHtml(category, wrapperClass = "cat-icon") {
+  return entityIconHtml(category, { kind: "category", wrapperClass });
 }
 
 export function repoIconHtml() {
-  return `<span class="repo-icon" aria-hidden="true">${svgIcon("repo", "repo-icon-svg")}</span>`;
+  return entityIconHtml(null, { kind: "repo", wrapperClass: "repo-icon" });
 }
 
 export function groupIconHtml(name) {
   return `<span class="group-icon" aria-hidden="true">${svgIcon(name, "group-icon-svg")}</span>`;
+}
+
+export function rolePresetIconHtml(preset) {
+  return entityIconHtml(preset, {
+    kind: "role",
+    wrapperClass: "curated-preset-icon",
+  });
+}
+
+export function roadmapIconHtml(roadmap) {
+  return entityIconHtml(roadmap, {
+    kind: "roadmap",
+    wrapperClass: "roadmap-source-icon",
+  });
 }
 
 // depth(concise/medium/deep) 표시용 아이콘
