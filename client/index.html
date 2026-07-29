@@ -15,10 +15,12 @@
       rel="stylesheet"
       href="/vendor/highlight-github.css"
     />
-    <link rel="stylesheet" href="/white-brand.css?v=0.6.10" />
-    <link rel="stylesheet" href="/helix.css?v=0.6.10" />
+    <link rel="stylesheet" href="/vendor/katex.min.css" />
+    <link rel="stylesheet" href="/white-brand.css?v=0.6.11" />
+    <link rel="stylesheet" href="/helix.css?v=0.6.11" />
+    <link rel="stylesheet" href="/product-polish.css?v=0.6.11" />
   </head>
-  <body class="dark-mode">
+  <body class="light-mode">
     <svg class="blue-symbol-library" width="0" height="0" aria-hidden="true" focusable="false">
       <defs>
         <path
@@ -77,7 +79,6 @@
               <span>Spiral Buddy</span>
               <span class="brand-edition">White</span>
             </h1>
-            <p class="brand-subtitle">나선형 학습 노트</p>
           </div>
         </div>
       </header>
@@ -441,7 +442,7 @@
           <option value="medium" selected>중간</option>
           <option value="deep">깊이</option>
         </select>
-        <button type="button" id="lookup-question-submit" class="lookup-question-submit">▶ 보내기</button>
+        <button type="button" id="lookup-question-submit" class="lookup-question-submit">보내기</button>
       </div>
     </div>
 
@@ -469,8 +470,10 @@
     <div id="gaps-modal" class="modal-overlay hidden" aria-hidden="true">
       <div class="modal gaps-modal" role="dialog" aria-modal="true" aria-labelledby="gaps-modal-title">
         <header class="trash-modal-header">
-          <h3 id="gaps-modal-title">🌉 설명적 간극 인덱스</h3>
-          <button id="gaps-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+          <h3 id="gaps-modal-title">설명적 간극 인덱스</h3>
+          <button id="gaps-modal-close" class="modal-close" type="button" aria-label="닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </header>
         <div class="gaps-toolbar">
           <input id="gaps-search" type="text" placeholder="간극 검색… (예: 감각질, 결합, 자유의지)" autocomplete="off" spellcheck="false" />
@@ -483,8 +486,10 @@
     <div id="principles-modal" class="modal-overlay hidden" aria-hidden="true">
       <div class="modal gaps-modal" role="dialog" aria-modal="true" aria-labelledby="principles-modal-title">
         <header class="trash-modal-header">
-          <h3 id="principles-modal-title">🔁 원리 인덱스 — 레이어 횡단</h3>
-          <button id="principles-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+          <h3 id="principles-modal-title">원리 인덱스 — 레이어 횡단</h3>
+          <button id="principles-modal-close" class="modal-close" type="button" aria-label="닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </header>
         <div class="gaps-toolbar">
           <input id="principles-search" type="text" placeholder="원리·노트 검색… (예: 예측, 표상)" autocomplete="off" spellcheck="false" />
@@ -498,7 +503,9 @@
       <div class="modal activity-modal" role="dialog" aria-modal="true" aria-labelledby="activity-modal-title">
         <header class="trash-modal-header">
           <h3 id="activity-modal-title">학습 활동 — 지난 1년</h3>
-          <button id="activity-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+          <button id="activity-modal-close" class="modal-close" type="button" aria-label="닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </header>
         <div id="activity-summary" class="activity-summary"></div>
         <div id="activity-grid-wrap" class="activity-grid-wrap">
@@ -522,7 +529,9 @@
       <div class="modal settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title">
         <header class="trash-modal-header">
           <h3 id="settings-modal-title">설정</h3>
-          <button id="settings-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+          <button id="settings-modal-close" class="modal-close" type="button" aria-label="닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </header>
         <div id="settings-load-state" class="settings-load-state hidden" role="status" aria-live="polite">
           <span class="inline-spinner" aria-hidden="true"></span>
@@ -538,7 +547,7 @@
           <div class="settings-field theme-field">
             <label>테마</label>
             <div class="theme-toggle" role="radiogroup" aria-label="테마 선택">
-              <button type="button" class="theme-opt" data-theme="light" role="radio" aria-checked="false" tabindex="-1">
+              <button type="button" class="theme-opt active" data-theme="light" role="radio" aria-checked="true" tabindex="0">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <circle cx="12" cy="12" r="4.5"/>
                   <line x1="12" y1="2" x2="12" y2="4"/>
@@ -552,7 +561,7 @@
                 </svg>
                 <span>화이트</span>
               </button>
-              <button type="button" class="theme-opt active" data-theme="dark" role="radio" aria-checked="true" tabindex="0">
+              <button type="button" class="theme-opt" data-theme="dark" role="radio" aria-checked="false" tabindex="-1">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
                 </svg>
@@ -665,11 +674,15 @@
             </div>
             <!-- v0.5.55 — 위치가 현재 워크스페이스와 다를 때만 경고 표시 -->
             <div id="curated-target-warning" class="curated-target-warning hidden" role="alert">
-              <span class="curated-target-warning-icon" aria-hidden="true">⚠️</span>
+              <span class="curated-target-warning-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><path d="M12 3 2.8 20h18.4L12 3Z"/><line x1="12" y1="9" x2="12" y2="14"/><circle cx="12" cy="17" r="1" fill="currentColor" stroke="none"/></svg>
+              </span>
               <span>이 위치는 현재 워크스페이스와 달라요. 새로 받는 자료는 <strong>이 폴더에만</strong> 설치되며, 기존 워크스페이스에 자동으로 합쳐지지 않습니다. 진행도(d1/d2)는 옵시디언 vault에 있어 안전하지만, 새 워크스페이스를 만들어야 정상 표시됩니다.</span>
             </div>
             <div id="curated-target-hint" class="curated-target-hint hidden">
-              <span class="curated-target-hint-icon" aria-hidden="true">✓</span>
+              <span class="curated-target-hint-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><polyline points="5 12 10 17 19 7"/></svg>
+              </span>
               <span>현재 워크스페이스 폴더에 받습니다 — 기존 백엔드 자료/진행도 그대로 두고 누락된 도메인만 추가됩니다.</span>
             </div>
 
@@ -718,7 +731,9 @@
       <div class="modal add-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="add-ws-title">
         <header class="trash-modal-header">
           <h3 id="add-ws-title">새 워크스페이스 추가</h3>
-          <button id="add-ws-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+          <button id="add-ws-close" class="modal-close" type="button" aria-label="닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </header>
 
         <div class="settings-field">
@@ -731,11 +746,17 @@
           <div class="radio-row">
             <label class="radio-option">
               <input type="radio" name="ws-source" value="git" checked />
-              <span>📥 Git 레포 URL로 클론</span>
+              <span class="setup-choice-label">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><polyline points="7 10 12 15 17 10"/><path d="M5 20h14"/></svg>
+                Git 레포 URL로 클론
+              </span>
             </label>
             <label class="radio-option">
               <input type="radio" name="ws-source" value="dir" />
-              <span>📁 기존 디렉토리 지정</span>
+              <span class="setup-choice-label">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l1.8 2H20v8.5a2 2 0 0 1-2 2H5.5a2 2 0 0 1-2-2V6.5Z"/></svg>
+                기존 디렉토리 지정
+              </span>
             </label>
           </div>
         </div>
@@ -771,7 +792,9 @@
       <div class="modal add-workspace-modal" role="dialog" aria-modal="true" aria-labelledby="remove-ws-title">
         <header class="trash-modal-header">
           <h3 id="remove-ws-title">워크스페이스 삭제</h3>
-          <button id="remove-ws-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+          <button id="remove-ws-close" class="modal-close" type="button" aria-label="닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </header>
 
         <div class="settings-hint" style="margin-bottom: 16px;">
@@ -807,7 +830,9 @@
       <div class="modal trash-modal" role="dialog" aria-modal="true" aria-labelledby="trash-modal-title">
         <header class="trash-modal-header">
           <h3 id="trash-modal-title">휴지통 — 삭제된 노트 복구</h3>
-          <button id="trash-modal-close" class="modal-close" type="button" aria-label="닫기">✕</button>
+          <button id="trash-modal-close" class="modal-close" type="button" aria-label="닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </header>
         <div class="trash-modal-hint">
           mtime 30일 초과 항목은 서버 시작 시 영구 삭제됨.
@@ -816,6 +841,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=0.6.10"></script>
+    <script type="module" src="/app.js?v=0.6.11"></script>
   </body>
 </html>

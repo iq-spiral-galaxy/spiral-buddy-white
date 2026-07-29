@@ -1,0 +1,492 @@
+/*
+ * Spiral Buddy White — final product polish
+ * Loaded after the shared theme layers. Keep this file token-driven so every
+ * Buddy can inherit the same interaction language with its own palette.
+ */
+
+body:is(.light-mode, .dark-mode) {
+  --white-canvas: var(--blue-canvas);
+  --white-paper: var(--blue-paper);
+  --white-paper-muted: var(--blue-paper-muted);
+  --white-surface: var(--blue-surface, var(--blue-paper-muted));
+  --white-line: var(--blue-line);
+  --white-line-strong: var(--blue-line-strong);
+  --white-ink: var(--blue-ink);
+  --white-ink-faint: var(--blue-ink-faint);
+  --white-cobalt: var(--blue-cobalt);
+  --white-cobalt-strong: var(--blue-cobalt-strong);
+  --white-cobalt-soft: var(--blue-cobalt-soft);
+  --white-action: var(--blue-action);
+  --white-action-hover: var(--blue-action-hover);
+  --white-success: var(--blue-success);
+  --white-success-soft: var(--blue-success-soft);
+  --white-warning: var(--blue-warning);
+  --white-danger: var(--blue-danger);
+  --white-danger-soft: var(--blue-danger-soft);
+  --white-shadow-sm: var(--blue-shadow-sm);
+  --white-shadow-md: var(--blue-shadow-md);
+  --white-focus: var(--blue-focus);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Light workspace and composer                                                */
+/* -------------------------------------------------------------------------- */
+
+body.light-mode .messages-wrap,
+body.light-mode .messages {
+  background: var(--white-surface, var(--white-paper-muted)) !important;
+}
+
+body.light-mode .message.assistant .content {
+  background: color-mix(
+    in srgb,
+    var(--white-cobalt) 2%,
+    var(--white-paper)
+  ) !important;
+  border-color: var(--white-line) !important;
+  box-shadow: var(--white-shadow-sm) !important;
+}
+
+body.light-mode .message.assistant:hover .content {
+  border-color: color-mix(
+    in srgb,
+    var(--white-cobalt) 24%,
+    var(--white-line)
+  ) !important;
+  box-shadow: var(--white-shadow-md) !important;
+}
+
+body.light-mode .composer {
+  background: var(--white-paper) !important;
+  border-top-color: var(--white-line) !important;
+}
+
+body.light-mode .composer #input,
+body.light-mode .composer #input:hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--white-cobalt) 2%,
+    var(--white-paper-muted)
+  ) !important;
+  border: 1px solid var(--white-line) !important;
+  box-shadow: var(--white-shadow-sm) !important;
+}
+
+body.light-mode .composer #input:hover:not(:disabled) {
+  border-color: var(--white-line-strong) !important;
+}
+
+body.light-mode .composer #input:focus {
+  background: var(--white-paper) !important;
+  border-color: var(--white-cobalt) !important;
+  box-shadow: var(--white-focus) !important;
+  outline: none !important;
+}
+
+body.light-mode .composer #input:disabled {
+  background: color-mix(
+    in srgb,
+    var(--white-cobalt) 2%,
+    var(--white-paper-muted)
+  ) !important;
+  border: 1px solid var(--white-line) !important;
+  box-shadow: var(--white-shadow-sm) !important;
+  opacity: 0.78;
+}
+
+body.light-mode .composer-btn-col {
+  padding: 4px;
+  background: color-mix(
+    in srgb,
+    var(--white-cobalt) 2%,
+    var(--white-paper-muted)
+  );
+  border: 1px solid var(--white-line);
+  border-radius: 11px;
+  box-shadow: var(--white-shadow-sm);
+}
+
+body.light-mode #topbar,
+body.light-mode #topbar :is(strong, .topbar-home-copy) {
+  color: var(--white-ink) !important;
+}
+
+/* Voice, refine and send remain distinguishable without introducing new hues. */
+
+body:is(.light-mode, .dark-mode) .composer-btn-col .mic-btn {
+  --product-action-tone: var(--white-success);
+}
+
+body:is(.light-mode, .dark-mode) .composer-btn-col .refine-btn {
+  --product-action-tone: var(--white-warning);
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn, .refine-btn) {
+  background: color-mix(
+    in srgb,
+    var(--product-action-tone) 9%,
+    var(--white-paper)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--product-action-tone) 40%,
+    var(--white-line)
+  ) !important;
+  color: var(--product-action-tone) !important;
+  opacity: 1 !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn, .refine-btn):hover:not(:disabled) {
+  background: color-mix(
+    in srgb,
+    var(--product-action-tone) 16%,
+    var(--white-paper)
+  ) !important;
+  border-color: var(--product-action-tone) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn, .refine-btn):focus-visible {
+  outline: 2px solid
+    color-mix(in srgb, var(--product-action-tone) 70%, transparent);
+  outline-offset: 2px;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn, .refine-btn):disabled:not(.is-loading) {
+  background: color-mix(
+    in srgb,
+    var(--product-action-tone) 5%,
+    var(--white-paper-muted)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--product-action-tone) 24%,
+    var(--white-line)
+  ) !important;
+  color: color-mix(
+    in srgb,
+    var(--product-action-tone) 58%,
+    var(--white-ink-faint)
+  ) !important;
+  opacity: 1 !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  :is(.mic-btn.active, .refine-btn.is-loading) {
+  background: color-mix(
+    in srgb,
+    var(--product-action-tone) 20%,
+    var(--white-paper)
+  ) !important;
+  border-color: var(--product-action-tone) !important;
+  color: var(--product-action-tone) !important;
+}
+
+body:is(.light-mode, .dark-mode) .composer-btn-col .send-btn {
+  background: var(--white-action) !important;
+  border: 1px solid var(--white-action) !important;
+  color: #ffffff !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  .send-btn:hover:not(:disabled) {
+  background: var(--white-action-hover) !important;
+  border-color: var(--white-action-hover) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  .send-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--white-focus) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  .send-btn:disabled:not([aria-busy="true"]) {
+  background: color-mix(
+    in srgb,
+    var(--white-cobalt) 8%,
+    var(--white-paper-muted)
+  ) !important;
+  border-color: color-mix(
+    in srgb,
+    var(--white-cobalt) 28%,
+    var(--white-line)
+  ) !important;
+  color: color-mix(
+    in srgb,
+    var(--white-cobalt) 58%,
+    var(--white-ink-faint)
+  ) !important;
+}
+
+body:is(.light-mode, .dark-mode)
+  .composer-btn-col
+  .send-btn[aria-busy="true"] {
+  background: var(--white-cobalt-soft) !important;
+  border-color: var(--white-cobalt) !important;
+  color: var(--white-cobalt-strong) !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Search                                                                      */
+/* -------------------------------------------------------------------------- */
+
+body:is(.light-mode, .dark-mode) .sidebar-search-input {
+  transition:
+    padding-left 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.sidebar-search-icon {
+  pointer-events: none;
+  transition:
+    opacity 140ms ease,
+    visibility 140ms ease,
+    transform 160ms ease;
+}
+
+.sidebar-search-wrap:focus-within .sidebar-search-icon {
+  visibility: hidden;
+  opacity: 0;
+  transform: translate(-5px, -50%) scale(0.92);
+}
+
+body:is(.light-mode, .dark-mode)
+  .sidebar-search-wrap:focus-within
+  .sidebar-search-input {
+  padding-left: 14px !important;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Math                                                                         */
+/* -------------------------------------------------------------------------- */
+
+.message .content,
+.lookup-card-body,
+.history-detail-content {
+  min-width: 0;
+}
+
+.math-src {
+  position: relative;
+  max-width: 100%;
+  border-radius: 5px;
+  cursor: copy;
+  transition:
+    background-color 140ms ease,
+    box-shadow 140ms ease,
+    color 140ms ease;
+}
+
+.math-src:hover {
+  background: color-mix(
+    in srgb,
+    var(--white-cobalt) 7%,
+    transparent
+  );
+}
+
+.math-src:focus-visible {
+  outline: 2px solid var(--white-cobalt);
+  outline-offset: 3px;
+  box-shadow: var(--white-focus);
+}
+
+.math-src-display {
+  display: block;
+  width: 100%;
+  margin: 0.9em 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-inline: contain;
+  scrollbar-color: var(--white-line-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.math-src-display .katex-display {
+  width: max-content;
+  min-width: 100%;
+  margin: 0;
+  text-align: center;
+}
+
+.math-copy-feedback {
+  position: absolute;
+  z-index: 3;
+  right: 6px;
+  bottom: 4px;
+  max-width: min(220px, calc(100% - 12px));
+  padding: 4px 7px;
+  background: var(--white-ink);
+  border-radius: 5px;
+  color: var(--white-paper);
+  font: 650 10px/1.35 var(--font-sans);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(3px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease;
+  white-space: nowrap;
+}
+
+.math-copied {
+  background: var(--white-success-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--white-success) 45%, var(--white-line));
+}
+
+.math-copied .math-copy-feedback,
+.math-copy-failed .math-copy-feedback {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.math-copy-failed {
+  background: var(--white-danger-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--white-danger) 50%, var(--white-line));
+}
+
+.math-copy-failed .math-copy-feedback {
+  background: var(--white-danger);
+  color: #ffffff;
+}
+
+.math-src-error,
+.math-src-error .katex-error {
+  color: var(--white-danger) !important;
+}
+
+.math-src-error {
+  padding: 2px 4px;
+  background: var(--white-danger-soft);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--white-danger) 36%, var(--white-line));
+}
+
+/* -------------------------------------------------------------------------- */
+/* Shared inline SVG                                                           */
+/* -------------------------------------------------------------------------- */
+
+:is(
+  .modal-close,
+  .setup-choice-label,
+  .curated-target-warning-icon,
+  .curated-target-hint-icon,
+  .composer-btn-col button,
+  .refine-bar-icon,
+  .refine-bar-undo
+)
+  > svg,
+.current-workspace-icon {
+  display: block;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.modal-close > svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 2;
+}
+
+.setup-choice-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setup-choice-label > svg,
+.curated-target-warning-icon > svg,
+.curated-target-hint-icon > svg {
+  width: 17px;
+  height: 17px;
+  stroke-width: 1.9;
+}
+
+.composer-btn-col button > svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Brand motion                                                                */
+/* -------------------------------------------------------------------------- */
+
+body #sidebar > .brand .logo-spiral .spiral-rotate,
+body.motion-on #sidebar > .brand .logo-spiral .spiral-rotate {
+  transform-box: view-box;
+  transform-origin: 32px 32px;
+  animation: helix-logo-rewind 36s linear infinite !important;
+}
+
+body #sidebar > .brand .logo-spiral .spiral-line,
+body.motion-on #sidebar > .brand .logo-spiral .spiral-line {
+  stroke-dasharray: 86 14;
+  animation: helix-logo-flow 9.6s linear infinite !important;
+}
+
+body #sidebar > .brand .logo-spiral .spiral-flow-dot,
+body.motion-on #sidebar > .brand .logo-spiral .spiral-flow-dot {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: helix-logo-pulse 4.8s ease-in-out infinite !important;
+}
+
+@media (max-width: 800px) {
+  body.light-mode .composer-btn-col {
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .math-src-display {
+    margin-inline: -4px;
+    width: calc(100% + 8px);
+    padding-inline: 8px;
+  }
+
+  .math-copy-feedback {
+    right: 4px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body #sidebar > .brand .logo-spiral .spiral-rotate,
+  body #sidebar > .brand .logo-spiral .spiral-line,
+  body #sidebar > .brand .logo-spiral .spiral-flow-dot,
+  body.motion-on #sidebar > .brand .logo-spiral .spiral-rotate,
+  body.motion-on #sidebar > .brand .logo-spiral .spiral-line,
+  body.motion-on #sidebar > .brand .logo-spiral .spiral-flow-dot {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .sidebar-search-input,
+  .sidebar-search-icon,
+  .math-src,
+  .math-copy-feedback {
+    transition: none !important;
+  }
+}

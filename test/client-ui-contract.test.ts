@@ -2,11 +2,21 @@ import { describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
-const [html, app, brandCss, helixCss, learningHub, electronMain, mcp] =
+const [
+  html,
+  app,
+  brandCss,
+  productCss,
+  helixCss,
+  learningHub,
+  electronMain,
+  mcp,
+] =
   await Promise.all([
   readFile(new URL("../client/index.html", import.meta.url), "utf8"),
   readFile(new URL("../client/app.js", import.meta.url), "utf8"),
   readFile(new URL("../client/white-brand.css", import.meta.url), "utf8"),
+  readFile(new URL("../client/product-polish.css", import.meta.url), "utf8"),
   readFile(new URL("../client/helix.css", import.meta.url), "utf8"),
   readFile(new URL("../client/learning-hub.js", import.meta.url), "utf8"),
   readFile(new URL("../electron/main.cjs", import.meta.url), "utf8"),
@@ -303,7 +313,7 @@ describe("client UI contracts", () => {
     );
   });
 
-  test("light composer is one surface and desktop junctions are rounded", () => {
+  test("light composer has clear input and action surfaces with rounded desktop junctions", () => {
     assert.match(
       brandCss,
       /body\.light-mode \.composer #input \{[\s\S]*?background: transparent !important;/,
@@ -320,9 +330,18 @@ describe("client UI contracts", () => {
       brandCss,
       /\.composer \{[\s\S]*?border-top-left-radius: 16px !important;/,
     );
-    assert.match(html, /white-brand\.css\?v=0\.6\.10/);
-    assert.match(html, /helix\.css\?v=0\.6\.10/);
-    assert.match(html, /app\.js\?v=0\.6\.10/);
+    assert.match(
+      productCss,
+      /body\.light-mode \.composer #input,[\s\S]*?border: 1px solid var\(--white-line\) !important;/,
+    );
+    assert.match(
+      productCss,
+      /body\.light-mode \.composer-btn-col \{[\s\S]*?border: 1px solid var\(--white-line\);/,
+    );
+    assert.match(html, /white-brand\.css\?v=0\.6\.11/);
+    assert.match(html, /helix\.css\?v=0\.6\.11/);
+    assert.match(html, /product-polish\.css\?v=0\.6\.11/);
+    assert.match(html, /app\.js\?v=0\.6\.11/);
   });
 
   test("the 820px mobile shell keeps the main column visible and hides inert resizers", () => {
@@ -427,5 +446,69 @@ describe("client UI contracts", () => {
       brandCss,
       /\.message\.user \.content \{[\s\S]*?width: fit-content !important;[\s\S]*?justify-self: end;/,
     );
+  });
+
+  test("all message surfaces share safe progressive Markdown and raw-source copy", () => {
+    assert.match(app, /createProgressiveMarkdownRenderer/);
+    assert.match(app, /copyText/);
+    assert.match(app, /getMarkdownSource/);
+    assert.match(app, /renderMarkdown\(cleanUiLabel\(item\)\)/);
+
+    const lookupStream = app.slice(
+      app.indexOf("async function streamMarkdownInto"),
+      app.indexOf("async function runLookup"),
+    );
+    assert.match(lookupStream, /createProgressiveMarkdownRenderer\(bodyEl\)/);
+    assert.match(lookupStream, /renderer\.append\(chunk\)/);
+    assert.match(lookupStream, /renderer\.finish\(\)/);
+
+    const sessionStream = app.slice(
+      app.indexOf("async function streamInto"),
+      app.indexOf("function appendUserMessage"),
+    );
+    assert.match(sessionStream, /createProgressiveMarkdownRenderer\(contentEl/);
+    assert.match(sessionStream, /renderer\.append\(chunk\)/);
+    assert.match(sessionStream, /const raw = renderer\.finish\(\)/);
+
+    const userMessage = app.slice(
+      app.indexOf("function appendUserMessage"),
+      app.indexOf("function appendAssistantMessage"),
+    );
+    assert.match(userMessage, /safeMarkedInto\(div\.querySelector\("\.content"\), text\)/);
+    assert.doesNotMatch(userMessage, /\.textContent = text/);
+
+    const lookupCard = app.slice(
+      app.indexOf("function createLookupCard"),
+      app.indexOf("async function streamMarkdownInto"),
+    );
+    assert.match(lookupCard, /getMarkdownSource\(bodyEl\)/);
+    assert.match(lookupCard, /await copyText\(source\)/);
+    assert.match(lookupCard, /복사하지 못했어요/);
+
+    const transcript = app.slice(
+      app.indexOf("function showPastConversationModal"),
+      app.indexOf("let _sessionStartInFlight"),
+    );
+    assert.match(transcript, /safeMarkedInto\(contentEl/);
+
+    const previewCard = app.slice(
+      app.indexOf("function _renderAiCardMarkdown"),
+      app.indexOf("/** CSS.escape polyfill"),
+    );
+    assert.match(previewCard, /renderMarkdown\(String\(value/);
+    assert.match(previewCard, /_renderAiCardMarkdown\(card\.summary\)/);
+    assert.doesNotMatch(previewCard, /escapeHtml\(card\.summary\)/);
+  });
+
+  test("theme migration and labels stay consistent without decorative emoji", () => {
+    assert.match(app, /spiral-buddy:theme:v3/);
+    assert.doesNotMatch(app, /spiral-buddy:theme:v2/);
+    assert.match(
+      app,
+      /localStorage\.getItem\(THEME_KEY\) \|\| "light"/,
+    );
+    assert.match(app, /function displayRepoName\(name\) \{[\s\S]*?cleanUiLabel\(name\)/);
+    assert.match(app, /const displayTitle = cleanUiLabel\(ch\.title\)/);
+    assert.doesNotMatch(app, /[📕🔖📝🎤📖💬🎉✓✗❌⚠]/u);
   });
 });

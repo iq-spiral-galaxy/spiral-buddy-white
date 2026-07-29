@@ -7,10 +7,17 @@ import {
   cssEscape,
   truncate,
   _relTime,
+  cleanUiLabel,
   fetchJson,
   FetchTimeoutError,
 } from "./util.js";
-import { renderMarkdown, safeMarkedInto } from "./markdown.js";
+import {
+  createProgressiveMarkdownRenderer,
+  copyText,
+  getMarkdownSource,
+  renderMarkdown,
+  safeMarkedInto,
+} from "./markdown.js";
 import {
   STREAM_INACTIVITY_MS,
   createStreamHandle,
@@ -26,6 +33,7 @@ import {
   groupIconHtml,
   rolePresetIconHtml,
   roadmapIconHtml,
+  uiIconHtml,
   DEPTH_ICONS,
   CONTEXT_ICON_SVG,
 } from "./icons.js";
@@ -87,7 +95,7 @@ const DEFAULT_VAULT_SUBDIR = "spiral-buddy-white";
 // DEPTH_ICONS, CONTEXT_ICON_SVG)는 ./icons.js 로 분리됨.
 
 function displayWorkspaceName(workspace) {
-  const rawName = String(workspace?.name ?? "");
+  const rawName = cleanUiLabel(workspace?.name);
   const normalized = rawName.toLowerCase().replace(/[\s_-]+/g, "-");
   const rootBase = String(workspace?.roadmapRoot ?? "")
     .split(/[\\/]/)
@@ -209,14 +217,12 @@ function cacheEls() {
 // Init
 // ──────────────────────────────────────────────────────────
 
-// v0.5.35 — 테마 (다크/라이트) 적용
-// v0.6.5 — Blue의 기본 작업 환경을 어두운 모드로 전환.
-// 키를 v2로 분리해 v0.6.4에서 자동 저장된 light 값이 새 기본값을 가로막지 않게 한다.
-// 사용자가 v0.6.5에서 다시 선택한 값은 이후 그대로 유지된다.
-const THEME_KEY = "spiral-buddy:theme:v2";
+// 테마 (다크/라이트) 적용. v3부터 모든 버디가 light를 공통 기본값으로 사용한다.
+// 기존 명시적 선택과 자동 저장값을 구분하기 위해 저장 키도 함께 올린다.
+const THEME_KEY = "spiral-buddy:theme:v3";
 
 function applyTheme(theme) {
-  // White(⚪): 종이와 잉크의 대비에 핑크를 더한 팔레트. 기본 작업 환경은 dark.
+  // White: 종이와 잉크의 대비에 핑크를 더한 팔레트. 기본 작업 환경은 light.
   const t = theme === "dark" ? "dark" : "light";
   document.body.classList.toggle("light-mode", t === "light");
   document.body.classList.toggle("dark-mode", t === "dark");
@@ -230,9 +236,9 @@ function applyTheme(theme) {
 
 function getStoredTheme() {
   try {
-    return localStorage.getItem(THEME_KEY) || "dark";
+    return localStorage.getItem(THEME_KEY) || "light";
   } catch {
-    return "dark";
+    return "light";
   }
 }
 
@@ -437,12 +443,27 @@ function renderLearningHub({ loading = false } = {}) {
   const roadmapName = activeRoadmap
     ? displayRepoName(activeRoadmap.name)
     : "내 학습 공간";
+  const chapters = state.chapters.map((chapter) => ({
+    ...chapter,
+    title: cleanUiLabel(chapter.title),
+  }));
+  const history = state.history.map((note) => ({
+    ...note,
+    topic: cleanUiLabel(note.topic),
+    title: cleanUiLabel(note.title),
+  }));
+  const pausedSession = getLatestPausedSession();
   els.messages.innerHTML = buildLearningHubMarkup({
     roadmapName,
-    chapters: state.chapters,
-    history: state.history,
+    chapters,
+    history,
     recentChapterId: getRecentChapterId(),
-    pausedSession: getLatestPausedSession(),
+    pausedSession: pausedSession
+      ? {
+          ...pausedSession,
+          chapterTitle: cleanUiLabel(pausedSession.chapterTitle),
+        }
+      : null,
     canOpenSettings: Boolean(window.spiralSettings),
     loading,
   });
@@ -1258,7 +1279,7 @@ function renderMeta() {
 //   1) "-deep-dive" 접미사 제거  2) 하이픈 → 공백
 //   3) v0.5.91 — 모든 단어의 첫 글자 대문자 (Title Case)
 function displayRepoName(name) {
-  let s = String(name ?? "");
+  let s = cleanUiLabel(name);
   s = s.replace(/-deep-dive$/i, "");
   s = s.replace(/-/g, " ").trim();
   // 선두 챕터 번호/접두사 제거 — 사이드바엔 이미 인덱스(1.)가 보이므로 중복.
@@ -1478,7 +1499,7 @@ function renderDomainNode(domName, domEntry, catMeta) {
                 <button class="category-header" data-local-cat="${escapeAttr(catKey)}" style="--cat-color: ${escapeAttr(cat.color)}">
                   <span class="cat-caret">${catCaret}</span>
                   ${categoryIconHtml(cat)}
-                  <span class="cat-name">${escapeHtml(catName)}</span>
+                  <span class="cat-name">${escapeHtml(cleanUiLabel(catName))}</span>
                   <span class="cat-count">${repoMap.size}r · ${totalRoadmapsInCat}</span>
                 </button>
                 <div class="category-body ${catExpanded ? "" : "hidden"}">${catBody}</div>
@@ -1508,7 +1529,7 @@ function renderDomainNode(domName, domEntry, catMeta) {
           <button class="domain-header" data-local-dom="${escapeAttr(domName)}" ${domStyle}>
             <span class="cat-caret">${domCaret}</span>
             ${categoryIconHtml(dom)}
-            <span class="dom-name">${escapeHtml(dom.name)}</span>
+            <span class="dom-name">${escapeHtml(cleanUiLabel(dom.name))}</span>
             ${domDepthBadge}
             <span class="dom-count">${domCountText}</span>
           </button>
@@ -1583,13 +1604,19 @@ function renderRoadmapSelector() {
     // domName → { meta, order, cats: Map<catName, Map<repoName, Roadmap[]>> }
     const domainTree = new Map();
     const catMeta = new Map(); // catName → category meta (도메인 무관 메타)
-    const UNCAT_DOMAIN = { id: "_uncategorized", name: "기타", emoji: null, color: "#888888", order: 999 };
+    const UNCAT_DOMAIN = {
+      id: "_uncategorized",
+      name: "기타",
+      emoji: null,
+      color: "#888888",
+      order: 999,
+    };
 
     for (const r of local) {
       const catName = r.category?.name ?? "Uncategorized";
       catMeta.set(
         catName,
-        r.category ?? { name: "Uncategorized", emoji: "📁", color: "#888888" },
+        r.category ?? { name: "Uncategorized", emoji: null, color: "#888888" },
       );
       const dom = r.domain ?? UNCAT_DOMAIN;
       const domKey = dom.name;
@@ -1721,13 +1748,15 @@ function renderRoadmapSelector() {
                   const desc = repo.description
                     ? escapeHtml(repo.description.slice(0, 80))
                     : "";
-                  const buttonLabel = isInstalling ? "받는 중…" : "📥 받기";
+                  const buttonLabel = isInstalling
+                    ? "받는 중…"
+                    : `${uiIconHtml("download")}<span>받기</span>`;
                   return `
                     <div class="curated-available-item">
-                      <div class="curated-available-name">${escapeHtml(repo.name)}</div>
+                      <div class="curated-available-name">${escapeHtml(cleanUiLabel(repo.name))}</div>
                       ${desc ? `<div class="curated-available-desc">${desc}</div>` : ""}
                       <div class="curated-available-meta">
-                        <span>⭐ ${repo.stars}</span>
+                        <span>관심 ${repo.stars}</span>
                         <span>·</span>
                         <span>${escapeHtml(repo.pushedAt.slice(0, 10))}</span>
                         <button class="install-btn ${isInstalling ? "installing" : ""}" data-repo="${escapeAttr(repo.name)}" ${isInstalling ? "disabled" : ""}>${buttonLabel}</button>
@@ -1743,7 +1772,7 @@ function renderRoadmapSelector() {
               <button class="category-header" data-cat="${escapeAttr(group.name)}" style="--cat-color: ${escapeAttr(group.color)}">
                 <span class="cat-caret">${caret}</span>
                 ${categoryIconHtml(group)}
-                <span class="cat-name">${escapeHtml(group.name)}</span>
+                <span class="cat-name">${escapeHtml(cleanUiLabel(group.name))}</span>
                 <span class="cat-count">${group.repos.length}</span>
               </button>
               <div class="category-body ${isExpanded ? "" : "hidden"}">${groupRepos}</div>
@@ -1927,10 +1956,11 @@ function roadmapItemHtml(r) {
   const progressLabel = `${r.visitedChapters}/${r.chapterCount}`;
   const lastDateLabel =
     lastDate === "—" ? "최근 학습 기록 없음" : `마지막 학습 ${lastDate}`;
+  const displayName = displayRepoName(r.name);
   return `
-    <button class="roadmap-item ${isActive ? "active" : ""}" data-id="${escapeAttr(r.id)}" title="${escapeAttr(lastDateLabel)}" aria-label="${escapeAttr(`${r.name}, ${progressLabel} 챕터, ${lastDateLabel}`)}">
+    <button class="roadmap-item ${isActive ? "active" : ""}" data-id="${escapeAttr(r.id)}" title="${escapeAttr(lastDateLabel)}" aria-label="${escapeAttr(`${displayName}, ${progressLabel} 챕터, ${lastDateLabel}`)}">
       <div class="roadmap-item-heading">
-        <div class="roadmap-item-name">${escapeHtml(displayRepoName(r.name))}</div>
+        <div class="roadmap-item-name">${escapeHtml(displayName)}</div>
         <div class="roadmap-item-brief">
           ${depthBadge}
           <span class="roadmap-item-progress">${progressLabel}</span>
@@ -1945,7 +1975,7 @@ async function installCuratedRepo(repoName) {
   if (state.installingRepo) return; // 중복 클릭 방지
   state.installingRepo = repoName;
   renderRoadmapSelector();
-  setStatus(`📥 ${repoName} 클론 중… (수초~수십초)`);
+  setStatus(`${repoName} 클론 중… (수초~수십초)`);
 
   try {
     const res = await fetch("/api/curated/install", {
@@ -1970,7 +2000,7 @@ async function installCuratedRepo(repoName) {
       localStorage.setItem(LS_KEY, newOne.id);
     }
 
-    setStatus(`✓ ${repoName} 설치 완료`, "success");
+    setStatus(`${repoName} 설치 완료`, "success");
     state.installingRepo = null;
     renderRoadmapSelector();
     if (state.activeRoadmapId) await loadRoadmapData();
@@ -2063,7 +2093,7 @@ async function _handleSessionInterruptionBody() {
 
       const roadmaps = await fetch("/api/roadmaps").then((r) => r.json());
       state.roadmaps = Array.isArray(roadmaps) ? roadmaps : [];
-      setStatus("✓ 저장 완료 — 이동합니다", "success");
+      setStatus("저장 완료 — 이동합니다", "success");
       setTimeout(() => setStatus(""), 2500);
     } catch (err) {
       // 새 세션 시작 등으로 의도적 abort된 경우엔 조용히 취소
@@ -2073,8 +2103,7 @@ async function _handleSessionInterruptionBody() {
       }
       card.classList.add("error");
       const titleEl = card.querySelector(".end-progress-card-title");
-      if (titleEl)
-        titleEl.innerHTML = `<span style="color:#f85149">❌ 저장 실패</span>`;
+      if (titleEl) titleEl.textContent = "저장 실패";
       setStatus(`저장 실패: ${err.message}`, "error");
       setPending(false);
       return "cancel";
@@ -2233,11 +2262,11 @@ function micGuideHTML(os) {
       ? `<button type="button" class="primary" data-mic-action="settings">받아쓰기 설정 열기</button>`
       : "";
     return `
-      <div class="mic-guide-title">🎤 음성으로 입력하기 (macOS 받아쓰기)</div>
+      <div class="mic-guide-title">${uiIconHtml("mic")}<span>음성으로 입력하기 (macOS 받아쓰기)</span></div>
       <ol>
         <li>입력칸이 활성화됐어요 — 커서가 깜빡이는지 확인하세요.</li>
         <li><b>받아쓰기 단축키</b>를 누르고 말하면 그대로 입력돼요.<br>
-          <span class="dim">보통 <kbd>🎤</kbd>(F5) 키 또는 <kbd>⌃ Control</kbd> 두 번 — 단축키는 설정에서 확인/변경.</span></li>
+          <span class="dim">보통 <kbd>F5</kbd> 키 또는 <kbd>⌃ Control</kbd> 두 번 — 단축키는 설정에서 확인/변경.</span></li>
       </ol>
       <div class="mic-guide-note">처음이면 한 번만 켜주세요: <b>시스템 설정 → 키보드 → 받아쓰기 → 켜기</b> (음성 훈련·등록 필요 없음)</div>
       <div class="mic-guide-actions">${settingsBtn}<button type="button" data-mic-action="close">닫기</button></div>
@@ -2245,7 +2274,7 @@ function micGuideHTML(os) {
   }
   if (os === "win") {
     return `
-      <div class="mic-guide-title">🎤 음성으로 입력하기 (Windows)</div>
+      <div class="mic-guide-title">${uiIconHtml("mic")}<span>음성으로 입력하기 (Windows)</span></div>
       <ol>
         <li>입력칸이 활성화됐어요.</li>
         <li><kbd>⊞ Win</kbd> + <kbd>H</kbd> 를 누르고 말하면 그대로 입력돼요.<br>
@@ -2255,7 +2284,7 @@ function micGuideHTML(os) {
       <label class="mic-guide-dismiss"><input type="checkbox" data-mic-action="dontshow"> 다시 안 보기</label>`;
   }
   return `
-    <div class="mic-guide-title">🎤 음성으로 입력하기</div>
+    <div class="mic-guide-title">${uiIconHtml("mic")}<span>음성으로 입력하기</span></div>
     <ol><li>입력칸이 활성화됐어요.</li>
     <li>사용하는 OS의 <b>음성 입력(받아쓰기)</b>을 켜고 입력칸에 말하면 돼요.</li></ol>
     <div class="mic-guide-actions"><button type="button" data-mic-action="close">닫기</button></div>
@@ -2293,13 +2322,14 @@ function toggleMicGuide() {
   if (dismissed) {
     const hint =
       os === "mac"
-        ? "받아쓰기 단축키(🎤 또는 ⌃ 두 번)를 눌러 말하세요"
+        ? "받아쓰기 단축키(F5 또는 ⌃ 두 번)를 눌러 말하세요"
         : os === "win"
           ? "Win + H 를 눌러 말하세요"
           : "OS 음성 입력으로 말하세요";
-    setStatus(`🎤 ${hint}`, "info");
+    const statusMessage = hint;
+    setStatus(statusMessage, "info");
     setTimeout(() => {
-      if (els.statusBar?.textContent?.startsWith("🎤")) setStatus("");
+      if (els.statusBar?.textContent === statusMessage) setStatus("");
     }, 4000);
     return;
   }
@@ -2454,7 +2484,7 @@ function getRecentChapterId() {
   const chapters = state.chapters ?? [];
   const chapterIds = new Set(chapters.map((chapter) => chapter.id));
   const normalizeTitle = (value) =>
-    String(value ?? "")
+    cleanUiLabel(value)
       .replace(/^\s*\d+[.\-_:]\s*/, "")
       .trim()
       .toLowerCase();
@@ -2534,6 +2564,7 @@ function renderChapters() {
     );
     li.dataset.chapterStep = String(originalIdx + 1);
     const visited = (ch.maxDepth ?? 0) > 0;
+    const displayTitle = cleanUiLabel(ch.title) || String(ch.title ?? "");
     const isRecent = ch.id === recentChapterId;
     if (isRecent) li.classList.add("chapter-item--recent");
     const isActive = ch.id === activeChapterId;
@@ -2561,7 +2592,7 @@ function renderChapters() {
       : "";
     // visited 챕터에 노트 열기 + 삭제 트리거 (hover 시 등장)
     const openBtn = visited
-      ? `<button type="button" role="menuitem" class="chapter-open-btn" data-chapter-open="${escapeAttr(ch.id)}" title="기존 노트 열기 (Obsidian)" aria-label="${escapeAttr(ch.title)} 기존 노트 열기">
+      ? `<button type="button" role="menuitem" class="chapter-open-btn" data-chapter-open="${escapeAttr(ch.id)}" title="기존 노트 열기 (Obsidian)" aria-label="${escapeAttr(displayTitle)} 기존 노트 열기">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
             <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
@@ -2570,7 +2601,7 @@ function renderChapters() {
         </button>`
       : "";
     const trashBtn = visited
-      ? `<button type="button" role="menuitem" class="chapter-delete-btn" data-chapter-delete="${escapeAttr(ch.id)}" title="이 챕터의 노트 삭제" aria-label="${escapeAttr(ch.title)} 노트 삭제">
+      ? `<button type="button" role="menuitem" class="chapter-delete-btn" data-chapter-delete="${escapeAttr(ch.id)}" title="이 챕터의 노트 삭제" aria-label="${escapeAttr(displayTitle)} 노트 삭제">
           <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="3 6 5 6 21 6"></polyline>
             <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
@@ -2581,12 +2612,14 @@ function renderChapters() {
         </button>`
       : "";
     // v0.5.51 — 검색 중일 땐 원본 인덱스를 보여줘서 "전체 중 N번째" 알 수 있게
-    const titleHtml = q ? _highlightMatch(ch.title, q) : escapeHtml(ch.title);
+    const titleHtml = q
+      ? _highlightMatch(displayTitle, q)
+      : escapeHtml(displayTitle);
     // v0.5.70 — 챕터 미리보기 버튼. 캐시 있으면 채워진 외관, 없으면 비어있음.
     const aiReady = ch.aiCardReady === true;
     const previewLabel = aiReady
-      ? `${ch.title} 미리보기 열기`
-      : `${ch.title} 미리보기 준비하기`;
+      ? `${displayTitle} 미리보기 열기`
+      : `${displayTitle} 미리보기 준비하기`;
     const aiBtn = `<button type="button" role="menuitem" class="chapter-ai-btn${aiReady ? " ready" : ""}" data-chapter-ai="${escapeAttr(ch.id)}" title="${aiReady ? "챕터 미리보기 열기" : "챕터 미리보기 준비하기 (처음 한 번만)"}" aria-label="${escapeAttr(previewLabel)}">
         <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 12 m0 0 a1 1 0 0 1 2 0 a2 2 0 0 1 -4 0 a3 3 0 0 1 6 0 a4 4 0 0 1 -8 0 a5 5 0 0 1 10 0"></path>
@@ -2600,14 +2633,14 @@ function renderChapters() {
         <span class="chapter-meta${!visited && !isRecent ? " empty" : ""}">${recentBadge}${badge}</span>
       </button>
       <span class="chapter-actions">
-        <button type="button" class="chapter-actions-toggle" aria-label="${escapeAttr(ch.title)} 챕터 메뉴 열기" aria-expanded="false" aria-haspopup="menu" title="챕터 메뉴">
+        <button type="button" class="chapter-actions-toggle" aria-label="${escapeAttr(displayTitle)} 챕터 메뉴 열기" aria-expanded="false" aria-haspopup="menu" title="챕터 메뉴">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
             <circle cx="5" cy="12" r="1.5"></circle>
             <circle cx="12" cy="12" r="1.5"></circle>
             <circle cx="19" cy="12" r="1.5"></circle>
           </svg>
         </button>
-        <span class="chapter-action-buttons" role="menu" aria-label="${escapeAttr(ch.title)} 챕터 메뉴">
+        <span class="chapter-action-buttons" role="menu" aria-label="${escapeAttr(displayTitle)} 챕터 메뉴">
           ${aiBtn}
           ${openBtn}
           ${trashBtn}
@@ -2646,7 +2679,7 @@ function renderChapters() {
           ?.querySelector(".chapter-actions-toggle");
         return toggle && toggle.getClientRects().length > 0 ? toggle : trigger;
       };
-      // v0.5.70 — AI 카드(💡) 클릭은 별도 popover 흐름
+      // v0.5.70 — AI 카드 클릭은 별도 popover 흐름
       const aiTrigger = e.target.closest("[data-chapter-ai]");
       if (aiTrigger) {
         e.preventDefault();
@@ -2656,7 +2689,7 @@ function renderChapters() {
         openChapterAiCardPopover(anchor, ch);
         return;
       }
-      // 노트 열기 (📖) 클릭은 Obsidian 노트 열기로 분기
+      // 노트 열기 클릭은 Obsidian 노트 열기로 분기
       const openTrigger = e.target.closest("[data-chapter-open]");
       if (openTrigger) {
         e.preventDefault();
@@ -2692,7 +2725,7 @@ function renderChapters() {
 }
 
 // v0.5.78 — v0.5.69의 첫 단락 hover tooltip 제거.
-// 💡 AI 카드(v0.5.70)가 더 정돈된 미리보기를 제공하므로 hover 시
+// AI 카드(v0.5.70)가 더 정돈된 미리보기를 제공하므로 hover 시
 // 자동으로 뜨는 원문 발췌는 중복 + 시각 노이즈였음 (사용자 피드백).
 
 function openChapterNotePopover(anchorEl, chapter) {
@@ -2707,11 +2740,11 @@ function openChapterNotePopover(anchorEl, chapter) {
   closeDeletePopover();
   const pop = document.createElement("div");
   pop.className = "delete-popover";
-  const header = `<div class="delete-popover-title">노트 열기 — ${escapeHtml(chapter.title)}</div>`;
+  const header = `<div class="delete-popover-title">노트 열기 — ${escapeHtml(cleanUiLabel(chapter.title))}</div>`;
   const items = links
     .map(
       (l) =>
-        `<a class="delete-popover-item" href="${escapeAttr(l.url)}">📖 d${l.depth} 노트 (${escapeHtml(l.date)})</a>`,
+        `<a class="delete-popover-item" href="${escapeAttr(l.url)}">${uiIconHtml("book")}<span>d${l.depth} 노트 (${escapeHtml(l.date)})</span></a>`,
     )
     .join("");
   const hint = `<div class="delete-popover-hint">Obsidian에서 열림</div>`;
@@ -2734,7 +2767,7 @@ function openChapterNotePopover(anchorEl, chapter) {
 /**
  * v0.5.70 — 챕터 AI 미리보기 카드 popover.
  *
- * 사용자가 사이드바 💡 버튼을 클릭하면 호출. 서버에 fetch — 캐시 있으면
+ * 사용자가 사이드바 미리보기 버튼을 클릭하면 호출. 서버에 fetch — 캐시 있으면
  * 즉시 카드 받음, 없으면 Claude(Haiku 4.5)로 생성 후 받음. 결과는 서버에서
  * 자동 캐시되므로 다음 클릭은 latency 0.
  *
@@ -2753,7 +2786,7 @@ async function openChapterAiCardPopover(anchorEl, chapter) {
   pop.setAttribute("aria-labelledby", "chapter-preview-title");
   pop.innerHTML = `
     <div class="chapter-ai-popover-header">
-      <span class="chapter-ai-popover-title" id="chapter-preview-title">${escapeHtml(chapter.title)}</span>
+      <span class="chapter-ai-popover-title" id="chapter-preview-title">${escapeHtml(cleanUiLabel(chapter.title))}</span>
       <button class="chapter-ai-popover-close" type="button" aria-label="닫기">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="18" y1="6" x2="6" y2="18"></line>
@@ -2821,7 +2854,7 @@ async function openChapterAiCardPopover(anchorEl, chapter) {
     // viewport 아래로 삐져나가 스크롤로도 못 보는 문제가 있었음.
     _reclampAiPopover(pop);
     _aiCardRetryCount.delete(chapter.id); // v0.5.73 — 성공 시 재시도 카운터 리셋
-    // state 갱신 — 다음 렌더링에서 💡 채워진 상태로 표시
+    // state 갱신 — 다음 렌더링에서 준비된 상태로 표시
     chapter.aiCardReady = true;
     const btn = document.querySelector(
       `[data-chapter-ai="${cssEscape(chapter.id)}"]`,
@@ -2829,7 +2862,10 @@ async function openChapterAiCardPopover(anchorEl, chapter) {
     if (btn) {
       btn.classList.add("ready");
       btn.title = "챕터 미리보기 열기";
-      btn.setAttribute("aria-label", `${chapter.title} 미리보기 열기`);
+      btn.setAttribute(
+        "aria-label",
+        `${cleanUiLabel(chapter.title)} 미리보기 열기`,
+      );
     }
   } catch (e) {
     if (_activePopover !== pop) return;
@@ -2881,6 +2917,16 @@ function _reclampAiPopover(pop) {
   });
 }
 
+function _renderAiCardMarkdown(value) {
+  try {
+    const html = renderMarkdown(String(value ?? "")).trim();
+    const singleParagraph = html.match(/^<p>([\s\S]*)<\/p>$/);
+    return singleParagraph ? singleParagraph[1] : html;
+  } catch {
+    return escapeHtml(value);
+  }
+}
+
 function _renderChapterAiCardBody(pop, chapter, card) {
   const body = pop.querySelector(".chapter-ai-popover-body");
   if (!body) return;
@@ -2889,19 +2935,19 @@ function _renderChapterAiCardBody(pop, chapter, card) {
   const questionsHtml =
     Array.isArray(card.keyQuestions) && card.keyQuestions.length
       ? `<ul class="chapter-ai-questions">${card.keyQuestions
-          .map((q) => `<li>${escapeHtml(q)}</li>`)
+          .map((q) => `<li>${_renderAiCardMarkdown(q)}</li>`)
           .join("")}</ul>`
       : "";
   const prereqHtml = card.prerequisites
-    ? `<div class="chapter-ai-prereq"><span class="chapter-ai-prereq-label">선수 지식</span> ${escapeHtml(card.prerequisites)}</div>`
+    ? `<div class="chapter-ai-prereq"><span class="chapter-ai-prereq-label">선수 지식</span> ${_renderAiCardMarkdown(card.prerequisites)}</div>`
     : "";
   // v0.2.1 (White) — 이 챕터에서 마주칠 핵심 설명적 간극/직관의 함정 예고
   const gapHtml = card.gap
-    ? `<div class="chapter-ai-gap"><span class="chapter-ai-gap-label">🌉 마주칠 간극</span> ${escapeHtml(card.gap)}</div>`
+    ? `<div class="chapter-ai-gap"><span class="chapter-ai-gap-label">마주칠 간극</span> ${_renderAiCardMarkdown(card.gap)}</div>`
     : "";
 
   body.innerHTML = `
-    <div class="chapter-ai-summary">${escapeHtml(card.summary)}</div>
+    <div class="chapter-ai-summary">${_renderAiCardMarkdown(card.summary)}</div>
     <div class="chapter-ai-section-label">이 챕터를 읽으면 답할 수 있게 됩니다</div>
     ${questionsHtml}
     ${gapHtml}
@@ -3098,7 +3144,7 @@ async function refreshUpdateBanner({ force = false } = {}) {
     info = await window.spiralUpdate.check({ force });
   } catch (err) {
     banner.classList.add("errored");
-    text.innerHTML = `⚠ 확인 실패: ${escapeHtml(err?.message ?? String(err))} — 우측 <strong>Releases</strong>에서 수동으로 받기`;
+    text.innerHTML = `확인 실패: ${escapeHtml(err?.message ?? String(err))} — 우측 <strong>Releases</strong>에서 수동으로 받기`;
     if (recheckBtn) recheckBtn.disabled = false;
     return;
   }
@@ -3111,7 +3157,7 @@ async function refreshUpdateBanner({ force = false } = {}) {
       info?.httpStatus === 403
         ? " (GitHub API 시간당 제한 — 잠시 후 다시 확인하거나 우측 Releases에서 수동으로 받기)"
         : " — 우측 Releases에서 수동으로 받기";
-    text.innerHTML = `⚠ 확인 실패: ${escapeHtml(info.error)}${hint}`;
+    text.innerHTML = `확인 실패: ${escapeHtml(info.error)}${hint}`;
     return;
   }
 
@@ -3166,7 +3212,7 @@ async function refreshUpdateBanner({ force = false } = {}) {
     };
   } else {
     const cacheTag = info?.cached ? " (캐시)" : "";
-    text.innerHTML = `✓ 최신 버전 v${escapeHtml(info?.current ?? "")}${cacheTag}`;
+    text.innerHTML = `최신 버전 v${escapeHtml(info?.current ?? "")}${cacheTag}`;
   }
 }
 
@@ -3213,7 +3259,7 @@ async function openSettingsModal() {
   apiInput.value = "";
   apiInput.placeholder = "새 키 입력 (변경할 때만)";
   if (_settingsCache.apiKeyMasked) {
-    apiStatus.innerHTML = `✓ <strong>저장된 키:</strong> <code>${escapeHtml(_settingsCache.apiKeyMasked)}</code> · 변경하려면 위에 새 키 입력`;
+    apiStatus.innerHTML = `<strong>저장된 키:</strong> <code>${escapeHtml(_settingsCache.apiKeyMasked)}</code> · 변경하려면 위에 새 키 입력`;
     apiStatus.classList.add("ok");
   } else {
     apiStatus.textContent = "키가 저장되어 있지 않습니다.";
@@ -3284,10 +3330,10 @@ async function saveApiKey() {
     _settingsCache = await window.spiralSettings.get();
     input.value = "";
     input.placeholder = "새 키 입력 (변경할 때만)";
-    status.innerHTML = `✓ <strong>저장됨:</strong> <code>${escapeHtml(_settingsCache.apiKeyMasked)}</code> · 다음 세션부터 적용`;
+    status.innerHTML = `<strong>저장됨:</strong> <code>${escapeHtml(_settingsCache.apiKeyMasked)}</code> · 다음 세션부터 적용`;
     status.classList.add("ok");
   } else {
-    status.textContent = `✗ ${res.error}`;
+    status.textContent = res.error;
     status.classList.remove("ok");
     saveBtn.disabled = false;
   }
@@ -3435,11 +3481,11 @@ async function fetchLlmModelList() {
       const current = llmSelectedModel(el);
       populateLlmModelSelect(el, res.models, current || res.models[0]);
       showHint(
-        `✓ <strong>${res.models.length}개 모델</strong>을 불러왔습니다 — 목록에서 선택하거나 '직접 입력…'으로 계속 입력할 수 있어요.`,
+        `<strong>${res.models.length}개 모델</strong>을 불러왔습니다 — 목록에서 선택하거나 '직접 입력…'으로 계속 입력할 수 있어요.`,
         true,
       );
     } else {
-      showHint(`✗ ${escapeHtml(res?.error ?? "모델 목록 조회 실패")}`, false);
+      showHint(escapeHtml(res?.error ?? "모델 목록 조회 실패"), false);
     }
   } finally {
     el.fetchBtn.disabled = false;
@@ -3483,7 +3529,7 @@ function applyLlmPreset(id, { fillDefaults = false } = {}) {
       Boolean(_settingsCache?.llmKeySet) && _settingsCache?.llmProvider === preset.id;
     const parts = [escapeHtml(preset.hint ?? "")];
     if (!isAnthropic && keySaved) {
-      parts.push("✓ <strong>저장된 키 있음</strong> — 변경할 때만 새로 입력");
+      parts.push("<strong>저장된 키 있음</strong> — 변경할 때만 새로 입력");
     }
     if (!isAnthropic) {
       parts.push("저장 후 앱을 재시작하면 적용됩니다.");
@@ -3521,7 +3567,7 @@ async function saveLlm() {
 
   const showErr = (msg) => {
     if (el.hint) {
-      el.hint.textContent = `✗ ${msg}`;
+      el.hint.textContent = msg;
       el.hint.classList.remove("ok");
     }
   };
@@ -3561,7 +3607,7 @@ async function saveLlm() {
     refreshLlmSectionFromCache();
     if (el.hint && !relaunch) {
       el.hint.innerHTML =
-        `✓ <strong>저장됨</strong> — 앱을 재시작하면 적용됩니다.` +
+        `<strong>저장됨</strong> — 앱을 재시작하면 적용됩니다.` +
         `<br>${el.hint.innerHTML}`;
       el.hint.classList.add("ok");
     }
@@ -3598,7 +3644,7 @@ function renderWorkspaceListInSettings() {
         <div class="ws-row ${isActive ? "active" : ""}">
           <div class="ws-row-main">
             <div class="ws-row-name">
-              ${isActive ? "✓ " : ""}${escapeHtml(displayName)}
+              ${escapeHtml(displayName)}
               ${sourceTag}
             </div>
             <div class="ws-row-path"><code>${escapeHtml(w.roadmapRoot ?? "")}</code></div>
@@ -3728,9 +3774,9 @@ function initAddWorkspaceModal() {
     if (p.phase === "cloning") {
       box.textContent = `git clone 중… ${p.message ?? ""}`;
     } else if (p.phase === "reusing") {
-      box.textContent = `↪ ${p.message ?? "기존 폴더 사용"} (재클론 없이 등록)`;
+      box.textContent = `${p.message ?? "기존 폴더 사용"} (재클론 없이 등록)`;
     } else if (p.phase === "done") {
-      box.textContent = `✓ "${p.name}" 추가 완료`;
+      box.textContent = `"${p.name}" 추가 완료`;
     }
   });
 }
@@ -3941,7 +3987,7 @@ function renderCuratedPresets() {
             ${p.heavy ? `<span class="curated-preset-tag heavy">무거움</span>` : ""}
           </div>
           <div class="curated-preset-sub">${escapeHtml(p.subtitle ?? "")}</div>
-          <div class="curated-preset-meta">저장소 ${repos.length}개 · ${installedCount}/${repos.length} 받음 ${allDone ? "✓" : ""}</div>
+          <div class="curated-preset-meta">저장소 ${repos.length}개 · ${installedCount}/${repos.length} 받음${allDone ? " · 완료" : ""}</div>
         </button>`;
     })
     .join("");
@@ -3967,7 +4013,7 @@ function renderCuratedDomains() {
       const isAllDone = missing === 0;
       const isPartial = installedRepos.length > 0 && missing > 0;
       const btnLabel = isAllDone
-        ? "✓ 모두 받음"
+        ? "모두 받음"
         : isPartial
           ? `+${missing}개 추가`
           : `받기 (${repos.length})`;
@@ -4006,7 +4052,7 @@ async function installCuratedPreset(presetId) {
   }
   const missing = repos.filter((r) => !_curatedState.installed.has(r));
   if (missing.length === 0) {
-    alert(`${preset.name} — 이미 모두 받음 ✓`);
+    alert(`${preset.name} — 이미 모두 받음`);
     return;
   }
   const msg = `${preset.name} (${preset.subtitle ?? ""})\n\n받을 저장소: ${missing.length}개 (이미 받은 ${repos.length - missing.length}개는 건너뜀)\n위치: ${_curatedState.parentDir}\n\n진행할까요?`;
@@ -4024,7 +4070,7 @@ async function installCuratedDomain(domainId) {
   }
   const missing = repos.filter((r) => !_curatedState.installed.has(r));
   if (missing.length === 0) {
-    alert(`${d.name} — 이미 모두 받음 ✓`);
+    alert(`${d.name} — 이미 모두 받음`);
     return;
   }
   const msg = `${d.name}\n${d.subtitle ?? ""}\n\n받을 레포: ${missing.length}개\n위치: ${_curatedState.parentDir}\n\n진행할까요?`;
@@ -4068,7 +4114,7 @@ async function runCuratedInstall(repoNames, label) {
   _curatedState.busy = false;
 
   if (!res?.ok) {
-    if (text) text.textContent = `✗ ${label} 실패: ${res?.error ?? "unknown"}`;
+    if (text) text.textContent = `${label} 실패: ${res?.error ?? "unknown"}`;
   } else {
     if (text)
       text.textContent = `${label} 완료 — 새로 받음 ${res.newlyInstalled}, 건너뜀 ${res.skipped}, 실패 ${res.failed?.length ?? 0}`;
@@ -4142,7 +4188,8 @@ function initLookup() {
     b.addEventListener("mousedown", (e) => {
       e.preventDefault(); // selection이 사라지지 않게 + focus 변경 방지
       e.stopPropagation();
-      const text = (window.getSelection()?.toString() ?? "").trim();
+      const selection = window.getSelection();
+      const text = selectionSourceText(selection);
       if (!text) return;
       const action = b.dataset.action;
       const depth = b.dataset.depth;
@@ -4155,15 +4202,18 @@ function initLookup() {
       if (action === "context") {
         // v0.5.58 — 챕터 본문 맥락 요약. selection이 어떤 assistant 메시지 안에 있는지 찾아
         // 그 메시지 전체를 target으로, 선택 텍스트를 selectionText로 보냄.
-        const sel = window.getSelection();
+        const sel = selection;
         const anchor = sel?.anchorNode;
         const anchorEl =
           anchor?.nodeType === Node.ELEMENT_NODE
             ? anchor
             : anchor?.parentElement;
         const msgEl = anchorEl?.closest?.(".message.assistant");
+        const contentEl = msgEl?.querySelector(".content");
         const messageText =
-          msgEl?.querySelector(".content")?.innerText?.trim() ?? text;
+          (contentEl &&
+            (getMarkdownSource(contentEl) || contentEl.innerText?.trim())) ||
+          text;
         hideLookupToolbar();
         try {
           window.getSelection()?.removeAllRanges();
@@ -4395,6 +4445,24 @@ function initLookup() {
       if (!anyModalOpen) closeLookupPanel();
     }
   });
+}
+
+// KaTeX는 화면용 HTML과 접근성용 MathML을 함께 생성한다. 브라우저의
+// Selection 문자열만 복사하면 수식이 중복되거나 원래 TeX가 사라질 수 있어,
+// 한 수식 안의 선택은 렌더 전 LaTeX 원문으로 복원한다.
+function selectionSourceText(selection) {
+  if (!selection || selection.rangeCount === 0) return "";
+  const elementFor = (node) =>
+    node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+  const anchorMath = elementFor(selection.anchorNode)?.closest?.(".math-src");
+  const focusMath = elementFor(selection.focusNode)?.closest?.(".math-src");
+  if (anchorMath && anchorMath === focusMath) {
+    const tex = anchorMath.dataset.tex ?? "";
+    return (
+      anchorMath.dataset.display === "true" ? `$$${tex}$$` : `$${tex}$`
+    ).trim();
+  }
+  return selection.toString().trim();
 }
 
 function handleSelectionChange() {
@@ -4807,22 +4875,42 @@ function createLookupCard({ cardClass, fingerprintAttr, fingerprint, innerHtml }
 
   // 카드 액션
   card.querySelectorAll(".lookup-card-act").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
+    btn.addEventListener("click", async (e) => {
       e.stopPropagation();
       const act = btn.dataset.act;
       if (act === "close") {
         card.remove();
         _lookupState.cardCount--;
       } else if (act === "copy") {
-        const txt = bodyEl?.innerText ?? "";
-        navigator.clipboard?.writeText(txt).then(() => {
+        const source = bodyEl
+          ? getMarkdownSource(bodyEl) || bodyEl.innerText
+          : "";
+        try {
+          await copyText(source);
           btn.innerHTML = CHECK_SVG_INLINE;
           btn.classList.add("copied");
-          setTimeout(() => {
+          btn.setAttribute("aria-label", "복사됨");
+          btn.title = "복사됨";
+          window.setTimeout(() => {
             btn.innerHTML = COPY_SVG_INLINE;
             btn.classList.remove("copied");
+            btn.setAttribute("aria-label", "복사");
+            btn.title = "복사";
           }, 1200);
-        });
+        } catch {
+          btn.classList.add("copy-failed");
+          btn.setAttribute("aria-label", "복사 실패");
+          btn.title = "복사 실패";
+          setStatus(
+            "복사하지 못했어요. 클립보드 권한을 확인하고 다시 시도해주세요.",
+            "error",
+          );
+          window.setTimeout(() => {
+            btn.classList.remove("copy-failed");
+            btn.setAttribute("aria-label", "복사");
+            btn.title = "복사";
+          }, 1800);
+        }
       }
     });
   });
@@ -4831,8 +4919,8 @@ function createLookupCard({ cardClass, fingerprintAttr, fingerprint, innerHtml }
 
 // 카드 body로 SSE 스트림 → 마크다운 렌더 (abort/inactivity는 stream.js가 처리).
 async function streamMarkdownInto({ url, body, bodyEl, group }) {
-  let acc = "";
   const handle = createStreamHandle(group);
+  let renderer = null;
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -4844,19 +4932,23 @@ async function streamMarkdownInto({ url, body, bodyEl, group }) {
       bodyEl.textContent = `(요청 실패: ${res.status})`;
       return;
     }
+    renderer = createProgressiveMarkdownRenderer(bodyEl);
     await pumpStream(res.body.getReader(), handle, (chunk) => {
-      acc += chunk;
-      try {
-        bodyEl.innerHTML = renderMarkdown(acc);
-      } catch {
-        bodyEl.textContent = acc;
-      }
+      renderer.append(chunk);
     });
+    renderer.finish();
+    renderer = null;
   } catch (err) {
+    renderer?.finish();
+    renderer = null;
     // 패널 닫기/세션 전환에 의한 중단 — 카드도 곧 사라지므로 조용히
     if (isIntentionalAbort(err, handle)) return;
-    bodyEl.innerHTML = `<p>(에러: ${escapeHtml(err.message)})</p>`;
+    if (!bodyEl.textContent.trim()) {
+      bodyEl.textContent = `(에러: ${err.message})`;
+    }
+    setStatus(`보조 노트를 불러오지 못했어요: ${err.message}`, "error");
   } finally {
+    renderer?.cancel();
     finishStreamHandle(handle);
   }
 }
@@ -4938,7 +5030,7 @@ async function runLookup(query, depth, opts = {}) {
 // ──────────────────────────────────────────────────────────
 // v0.5.58 — 챕터 본문 맥락 요약 (β 방향)
 //   Buddy 메시지가 챕터의 어느 부분을 가리키는지 (인용+요약) 형식으로
-//   Look-up 패널에 카드로 표시. 매 메시지 📋 버튼 또는 드래그 toolbar에서 트리거.
+//   Look-up 패널에 카드로 표시. 매 메시지 문맥 버튼 또는 드래그 toolbar에서 트리거.
 // ──────────────────────────────────────────────────────────
 
 async function runChapterContext({ targetMessageText, selectionText } = {}) {
@@ -5063,7 +5155,7 @@ function renderTrashList(entries) {
             </div>
           </div>
           <button class="trash-restore-btn" data-file="${escapeAttr(e.fileName)}" type="button" title="복구">
-            ↩ 복구
+            복구
           </button>
         </li>
       `;
@@ -5084,7 +5176,7 @@ function renderTrashList(entries) {
           const err = await res.json().catch(() => ({}));
           alert(`복구 실패: ${err.error ?? res.status}`);
           btn.disabled = false;
-          btn.textContent = "↩ 복구";
+          btn.textContent = "복구";
           return;
         }
         // 갱신: 모달 + 사이드바 + 챕터
@@ -5096,7 +5188,7 @@ function renderTrashList(entries) {
       } catch (err) {
         alert(`복구 실패: ${err.message}`);
         btn.disabled = false;
-        btn.textContent = "↩ 복구";
+        btn.textContent = "복구";
       }
     });
   });
@@ -5191,8 +5283,8 @@ function renderGaps(data, query) {
     const count = blocks.reduce((s, b) => s + b.items.length, 0);
     html.push(
       domain
-        ? `<div class="gaps-domain-head" style="color:${escapeAttr(domain.color)}">${escapeHtml(domain.emoji)} ${escapeHtml(domain.name)} <span class="gaps-domain-count">${count}</span></div>`
-        : `<div class="gaps-domain-head">🗂 기타 <span class="gaps-domain-count">${count}</span></div>`,
+        ? `<div class="gaps-domain-head" style="color:${escapeAttr(domain.color)}">${categoryIconHtml(domain)}<span>${escapeHtml(cleanUiLabel(domain.name))}</span><span class="gaps-domain-count">${count}</span></div>`
+        : `<div class="gaps-domain-head">${uiIconHtml("repo")}<span>기타</span><span class="gaps-domain-count">${count}</span></div>`,
     );
     for (const { entry, items } of blocks) {
       const color = entry.domain?.color ?? "var(--accent)";
@@ -5210,7 +5302,7 @@ function renderGaps(data, query) {
       for (const item of items) {
         html.push(
           `<div class="gap-item" style="border-left-color:${escapeAttr(color)}">` +
-            `<div class="gap-text">${renderMarkdown(item)}</div>` +
+            `<div class="gap-text">${renderMarkdown(cleanUiLabel(item))}</div>` +
             `<div class="gap-meta">${metaInner}</div>` +
             `</div>`,
         );
@@ -5292,10 +5384,10 @@ function renderPrinciples(data, query) {
     if (!notes.length) continue;
     shown += notes.length;
     html.push(
-      `<div class="gaps-domain-head" style="color:${escapeAttr(g.color)}">${escapeHtml(g.emoji)} ${escapeHtml(g.label)} <span class="principle-en">${escapeHtml(g.en ?? "")}</span> <span class="gaps-domain-count">${notes.length}</span></div>`,
+      `<div class="gaps-domain-head" style="color:${escapeAttr(g.color)}">${uiIconHtml("sparkle")}<span>${escapeHtml(cleanUiLabel(g.label))}</span><span class="principle-en">${escapeHtml(g.en ?? "")}</span><span class="gaps-domain-count">${notes.length}</span></div>`,
     );
     for (const n of notes) {
-      const layer = n.domain ? `${n.domain.emoji} ${n.domain.name}` : "🗂 기타";
+      const layer = n.domain ? cleanUiLabel(n.domain.name) : "기타";
       const src = [
         n.repo ? displayRepoName(n.repo) : n.roadmapName,
         `d${n.depth}`,
@@ -5304,12 +5396,12 @@ function renderPrinciples(data, query) {
         .filter(Boolean)
         .join(" · ");
       const titleInner = n.obsidianUri
-        ? `<a href="${escapeAttr(n.obsidianUri)}" title="옵시디언에서 노트 열기">${escapeHtml(n.topic)} ↗</a>`
-        : escapeHtml(n.topic);
+        ? `<a href="${escapeAttr(n.obsidianUri)}" title="옵시디언에서 노트 열기">${escapeHtml(cleanUiLabel(n.topic))} ↗</a>`
+        : escapeHtml(cleanUiLabel(n.topic));
       html.push(
         `<div class="gap-item" style="border-left-color:${escapeAttr(g.color)}">` +
           `<div class="principle-note-layer" style="color:${escapeAttr(n.domain?.color ?? "var(--text-faint)")}">${escapeHtml(layer)}</div>` +
-          `<div class="gap-text"><strong>${titleInner}</strong>${n.summary ? ` — ${escapeHtml(n.summary)}` : ""}</div>` +
+          `<div class="gap-text"><strong>${titleInner}</strong>${n.summary ? ` — ${escapeHtml(cleanUiLabel(n.summary))}` : ""}</div>` +
           `<div class="gap-meta">${escapeHtml(src)}</div>` +
           `</div>`,
       );
@@ -5743,7 +5835,7 @@ function renderSearchResults(res, q) {
     items.push({
       kind: "roadmap",
       payload: r,
-      label: r.name,
+      label: cleanUiLabel(r.name),
       sublabel: r.path,
     });
   }
@@ -5752,8 +5844,8 @@ function renderSearchResults(res, q) {
     items.push({
       kind: "chapter",
       payload: c,
-      label: c.title,
-      sublabel: `${c.roadmapName} · ${c.chapterId}`,
+      label: cleanUiLabel(c.title),
+      sublabel: `${cleanUiLabel(c.roadmapName)} · ${c.chapterId}`,
     });
   }
   // 노트
@@ -5761,8 +5853,8 @@ function renderSearchResults(res, q) {
     items.push({
       kind: "note",
       payload: n,
-      label: n.title || n.topic,
-      sublabel: `d${n.depth} · ${n.date} · ${n.roadmapName ?? "?"} · ${n.chapterId ?? "?"}`,
+      label: cleanUiLabel(n.title || n.topic),
+      sublabel: `d${n.depth} · ${n.date} · ${cleanUiLabel(n.roadmapName) || "?"} · ${n.chapterId ?? "?"}`,
     });
   }
   _searchState.items = items;
@@ -5776,16 +5868,16 @@ function renderSearchResults(res, q) {
   }
   const sections = [];
   const groups = [
-    { kind: "roadmap", label: "로드맵", icon: "📕" },
-    { kind: "chapter", label: "챕터", icon: "🔖" },
-    { kind: "note", label: "노트", icon: "📝" },
+    { kind: "roadmap", label: "로드맵", icon: uiIconHtml("repo") },
+    { kind: "chapter", label: "챕터", icon: uiIconHtml("bookmark") },
+    { kind: "note", label: "노트", icon: uiIconHtml("note") },
   ];
   let flatIdx = 0;
   for (const g of groups) {
     const group = items.filter((it) => it.kind === g.kind);
     if (group.length === 0) continue;
     sections.push(
-      `<div class="search-section-label">${g.icon} ${g.label} · ${group.length}</div>`,
+      `<div class="search-section-label">${g.icon}<span>${g.label} · ${group.length}</span></div>`,
     );
     for (const it of group) {
       const idxInFlat = items.indexOf(it);
@@ -5915,7 +6007,8 @@ function openDeletePopover(anchorEl, target) {
   pop.className = "delete-popover";
 
   const scopeLabel = isRoadmap ? "로드맵 전체" : "챕터";
-  const header = `<div class="delete-popover-title">${escapeHtml(scopeLabel)} 노트 삭제 — ${escapeHtml(target.title)}</div>`;
+  const displayTitle = cleanUiLabel(target.title) || String(target.title ?? "");
+  const header = `<div class="delete-popover-title">${escapeHtml(scopeLabel)} 노트 삭제 — ${escapeHtml(displayTitle)}</div>`;
   const perDepthBtns =
     depths.length > 1
       ? depths
@@ -5960,7 +6053,7 @@ function openDeletePopover(anchorEl, target) {
     if (isAll) {
       const scope = isRoadmap ? "로드맵 전체" : "이 챕터";
       const ok = window.confirm(
-        `${scope}의 모든 노트를 .trash/로 옮길까요?\n— ${target.title}`,
+        `${scope}의 모든 노트를 .trash/로 옮길까요?\n— ${displayTitle}`,
       );
       if (!ok) return;
     }
@@ -6019,7 +6112,7 @@ function renderHistory() {
       <details class="history-disclosure">
         <summary>
           <span class="depth-pill">d${note.depth}</span>
-          <span class="topic">${escapeHtml(note.topic)}</span>
+          <span class="topic">${escapeHtml(cleanUiLabel(note.topic))}</span>
           <svg class="history-disclosure-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <polyline points="9 18 15 12 9 6"></polyline>
           </svg>
@@ -6061,7 +6154,7 @@ function renderHistory() {
 }
 
 // v0.5.106 — 과거 세션 대화 다시보기. /api/note/conversation에서 저장된 노트의
-// "💬 전체 대화"를 파싱해 받아, 메인창 위에 read-only 모달로 띄운다. 진행 중인
+// 저장된 전체 대화를 파싱해 받아, 메인창 위에 read-only 모달로 띄운다. 진행 중인
 // 세션을 건드리지 않으므로(비파괴) 세션 중에도 안전하게 열람 가능.
 async function openPastConversation(note) {
   const rel = note?.relativePath;
@@ -6089,19 +6182,15 @@ function showPastConversationModal(note, data) {
   const msgs = Array.isArray(data?.messages) ? data.messages : [];
   const bubbles = msgs.length
     ? msgs
-        .map((m) => {
+        .map((m, index) => {
           const who = m.role === "user" ? "YOU" : "BUDDY";
           const cls = m.role === "user" ? "user" : "assistant";
-          const content =
-            m.role === "assistant"
-              ? renderMarkdown(String(m.content ?? ""))
-              : `<p class="past-user-line">${escapeHtml(String(m.content ?? ""))}</p>`;
-          return `<div class="message ${cls}"><div class="role">${who}</div><div class="content">${content}</div></div>`;
+          return `<div class="message ${cls}"><div class="role">${who}</div><div class="content" data-transcript-index="${index}"></div></div>`;
         })
         .join("")
-    : `<div class="empty">이 노트엔 저장된 대화 기록이 없어요. (옛 노트이거나 구조화 실패 노트 — 📖로 Obsidian에서 전체 노트를 볼 수 있어요.)</div>`;
+    : `<div class="empty">이 노트엔 저장된 대화 기록이 없어요. 옛 노트이거나 구조화되지 않은 노트는 Obsidian에서 확인할 수 있어요.</div>`;
   const obsidianBtn = note.obsidianUri
-    ? `<a class="modal-btn" href="${escapeAttr(note.obsidianUri)}">📖 Obsidian에서 열기</a>`
+    ? `<a class="modal-btn" href="${escapeAttr(note.obsidianUri)}">${uiIconHtml("book")}<span>Obsidian에서 열기</span></a>`
     : "";
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay transcript-overlay";
@@ -6109,7 +6198,7 @@ function showPastConversationModal(note, data) {
     <div class="modal transcript-modal">
       <div class="modal-title transcript-modal-title">
         <span class="depth-pill">d${data?.depth ?? note.depth ?? 1}</span>
-        <span class="t">💬 ${escapeHtml(data?.topic || note.topic || "이전 대화")}</span>
+        <span class="t">${uiIconHtml("message")}<span>${escapeHtml(cleanUiLabel(data?.topic || note.topic) || "이전 대화")}</span></span>
         <span class="date">${escapeHtml(data?.date || note.date || "")}</span>
       </div>
       <div class="transcript-modal-body">${bubbles}</div>
@@ -6119,6 +6208,12 @@ function showPastConversationModal(note, data) {
       </div>
     </div>`;
   document.body.appendChild(overlay);
+  msgs.forEach((message, index) => {
+    const contentEl = overlay.querySelector(
+      `[data-transcript-index="${index}"]`,
+    );
+    if (contentEl) safeMarkedInto(contentEl, String(message.content ?? ""));
+  });
   function cleanup() {
     overlay.remove();
     document.removeEventListener("keydown", onKey);
@@ -6685,7 +6780,7 @@ async function resumePausedSession(id) {
     // resumed 항목은 paused 목록에서 제거
     writePausedList(readPausedList().filter((p) => p.id !== id));
     refreshPausedList();
-    setStatus(`✓ "${info.chapterTitle}" 이어가기 시작`, "success");
+    setStatus(`"${cleanUiLabel(info.chapterTitle)}" 이어가기 시작`, "success");
     setTimeout(() => setStatus(""), 2000);
     scrollToBottom(true);
   } catch (err) {
@@ -6825,7 +6920,7 @@ async function endSession() {
     }
     card.classList.add("error");
     const titleEl = card.querySelector(".end-progress-card-title");
-    if (titleEl) titleEl.innerHTML = `<span style="color:#f85149">❌ 저장 실패</span>`;
+    if (titleEl) titleEl.textContent = "저장 실패";
     setStatus(`기록을 저장하지 못했어요: ${err.message}`, "error");
   } finally {
     finishStreamHandle(endHandle);
@@ -6874,7 +6969,7 @@ function updateEndProgressCard(card, data) {
     step.classList.remove("active", "done");
     if (i < currentIdx) {
       step.classList.add("done");
-      step.querySelector(".step-marker").innerHTML = "✓";
+      step.querySelector(".step-marker").innerHTML = uiIconHtml("check");
     } else if (i === currentIdx) {
       step.classList.add("active");
       // detail 업데이트 (서버에서 보낸 동적 detail)
@@ -6891,7 +6986,7 @@ function finalizeEndProgressCard(card, result) {
   steps.forEach((step) => {
     step.classList.remove("active");
     step.classList.add("done");
-    step.querySelector(".step-marker").innerHTML = "✓";
+    step.querySelector(".step-marker").innerHTML = uiIconHtml("check");
   });
 
   // 타이틀을 완료 상태로
@@ -6926,10 +7021,10 @@ function finalizeEndProgressCard(card, result) {
   const summaryDiv = document.createElement("div");
   summaryDiv.className = "end-progress-summary";
   summaryDiv.innerHTML = `
-    <div class="summary-topic"><strong>${escapeHtml(result.topic ?? "")}</strong> · depth ${result.depth}</div>
+    <div class="summary-topic"><strong>${escapeHtml(cleanUiLabel(result.topic))}</strong> · depth ${result.depth}</div>
     ${result.summary ? `<div class="summary-text">${escapeHtml(result.summary)}</div>` : ""}
     <div class="summary-stats">
-      <span>⏱ ${elapsedMin}분</span>
+      <span>소요 ${elapsedMin}분</span>
       <span>·</span>
       <span>${result.inputTokens ?? 0} in · ${result.outputTokens ?? 0} out</span>
       ${result.bodyChars ? `<span>·</span><span>${result.bodyChars.toLocaleString()}자</span>` : ""}
@@ -6951,7 +7046,7 @@ function finalizeEndProgressCard(card, result) {
           ? `<button class="end-action-btn next-chapter-btn" data-next-id="${escapeAttr(nextChapter.id)}" type="button">
               <span class="next-label">
                 <span class="next-eyebrow">다음 챕터</span>
-                <span class="next-title">${escapeHtml(nextChapter.title ?? nextChapter.id)}</span>
+                <span class="next-title">${escapeHtml(cleanUiLabel(nextChapter.title) || nextChapter.id)}</span>
               </span>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <line x1="5" y1="12" x2="19" y2="12"/>
@@ -6959,7 +7054,7 @@ function finalizeEndProgressCard(card, result) {
               </svg>
             </button>`
           : isLast
-            ? `<div class="end-action-roadmap-done">🎉 이 로드맵의 마지막 챕터를 마쳤어요!</div>`
+            ? `<div class="end-action-roadmap-done">${uiIconHtml("sparkle")}<span>이 로드맵의 마지막 챕터를 마쳤어요!</span></div>`
             : ""
       }
       ${
@@ -7007,33 +7102,23 @@ function finalizeEndProgressCard(card, result) {
 async function streamInto(response, messageEl, handle) {
   const reader = response.body.getReader();
   const contentEl = messageEl.querySelector(".content");
-  let raw = "";
-  let renderScheduled = false;
-
-  const scheduleRender = () => {
-    if (renderScheduled) return;
-    renderScheduled = true;
-    requestAnimationFrame(() => {
-      renderScheduled = false;
-      safeMarkedInto(contentEl, raw);
-      scrollToBottom();
-    });
-  };
+  const renderer = createProgressiveMarkdownRenderer(contentEl, {
+    onRender: () => scrollToBottom(),
+  });
 
   // v0.5.73 — inactivity timeout + abort 지원. handle 없이 호출되는
   // 레거시 경로 대비 fallback handle 생성.
   const h = handle ?? createStreamHandle("session");
   try {
     await pumpStream(reader, h, (chunk) => {
-      raw += chunk;
-      scheduleRender();
+      renderer.append(chunk);
     });
   } finally {
     if (!handle) finishStreamHandle(h);
     // v0.5.75 — 스트림이 어떻게 끝나든 (성공/중단/에러) 받은 만큼은
     // 화면과 히스토리에 남김. 기존엔 에러 시 state.messages.push가
     // 안 돼서 부분 응답이 히스토리에서 증발했음.
-    safeMarkedInto(contentEl, raw);
+    const raw = renderer.finish();
     scrollToBottom();
     if (raw.trim()) {
       state.messages.push({ role: "assistant", content: raw });
@@ -7052,8 +7137,7 @@ function appendUserMessage(text, opts = {}) {
     <div class="role">YOU</div>
     <div class="content"></div>
   `;
-  // textContent로 입력 — 줄바꿈은 CSS white-space: pre-wrap이 유지함
-  div.querySelector(".content").textContent = text;
+  safeMarkedInto(div.querySelector(".content"), text);
   els.messages.appendChild(div);
   if (!opts.skipPush) state.messages.push({ role: "user", content: text });
   scrollToBottom();
@@ -7072,7 +7156,7 @@ function appendAssistantMessage(initialMarkdown) {
     ${_renderChapterContextBtn()}
   `;
   if (initialMarkdown) {
-    div.querySelector(".content").innerHTML = renderMarkdown(initialMarkdown);
+    safeMarkedInto(div.querySelector(".content"), initialMarkdown);
   }
   els.messages.appendChild(div);
   _wireChapterContextBtn(div);
@@ -7080,7 +7164,7 @@ function appendAssistantMessage(initialMarkdown) {
   return div;
 }
 
-// v0.5.58 — Buddy 메시지마다 "📋 문맥" 버튼 (챕터 본문 맥락 요약 카드 트리거)
+// v0.5.58 — Buddy 메시지마다 문맥 버튼 (챕터 본문 맥락 요약 카드 트리거)
 function _renderChapterContextBtn() {
   return `<button class="chapter-context-btn" type="button" title="이 메시지가 챕터 본문의 어느 부분인지 확인" aria-label="챕터 본문 맥락 보기">
     <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -7100,7 +7184,10 @@ function _wireChapterContextBtn(messageDiv) {
   btn.addEventListener("click", async (e) => {
     e.stopPropagation();
     const contentEl = messageDiv.querySelector(".content");
-    const text = contentEl?.innerText?.trim();
+    const text =
+      (contentEl &&
+        (getMarkdownSource(contentEl) || contentEl.innerText?.trim())) ||
+      "";
     if (!text || text.length < 5) return;
     await runChapterContext({ targetMessageText: text });
   });
@@ -7109,13 +7196,16 @@ function _wireChapterContextBtn(messageDiv) {
 function updateTopbar() {
   if (state.session) {
     const rmName = state.session.roadmapName ?? "";
+    const chapterTitle =
+      cleanUiLabel(state.session.chapterTitle) ||
+      String(state.session.chapterTitle ?? "");
     els.topbar.innerHTML = `
-      <button class="current-chapter-jump" type="button" title="사이드바에서 현재 학습 위치 보기" aria-label="${escapeAttr(state.session.chapterTitle)} — 사이드바에서 현재 학습 위치 보기" aria-controls="roadmap-list" aria-expanded="${String(!els.roadmapList.classList.contains("hidden"))}">
+      <button class="current-chapter-jump" type="button" title="사이드바에서 현재 학습 위치 보기" aria-label="${escapeAttr(chapterTitle)} — 사이드바에서 현재 학습 위치 보기" aria-controls="roadmap-list" aria-expanded="${String(!els.roadmapList.classList.contains("hidden"))}">
         <svg class="topbar-chapter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
           <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
         </svg>
-        <strong class="topbar-chapter-title" title="${escapeAttr(state.session.chapterTitle)}${rmName ? ` — ${escapeAttr(rmName)}` : ""}">${escapeHtml(state.session.chapterTitle)}</strong>
+        <strong class="topbar-chapter-title" title="${escapeAttr(chapterTitle)}${rmName ? ` — ${escapeAttr(cleanUiLabel(rmName))}` : ""}">${escapeHtml(chapterTitle)}</strong>
         <span class="depth">depth ${state.session.depth}</span>
         <svg class="current-chapter-jump-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polyline points="9 18 15 12 9 6"/>

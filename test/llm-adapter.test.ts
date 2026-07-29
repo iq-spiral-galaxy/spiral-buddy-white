@@ -6,6 +6,7 @@ import {
   completeOnce,
   isTransientApiError,
   friendlyApiErrorMessage,
+  MATH_OUTPUT_GUIDANCE,
   type ClaudeClient,
 } from "../src/claude.js";
 import type { Config } from "../src/config.js";
@@ -110,11 +111,63 @@ describe("openai-compatible: streamTurn", () => {
     });
     const msgs = (captured as { messages: Array<{ role: string; content: string }> })
       .messages;
-    assert.deepEqual(msgs[0], { role: "system", content: "시스템!" });
+    assert.equal(msgs[0]!.role, "system");
+    assert.ok(msgs[0]!.content.startsWith("시스템!"));
+    assert.ok(msgs[0]!.content.includes(MATH_OUTPUT_GUIDANCE));
+    assert.match(msgs[0]!.content, /\$\.\.\.\$/);
+    assert.match(msgs[0]!.content, /fenced code blocks/);
     assert.deepEqual(msgs[1], { role: "user", content: "블록1\n블록2" });
     assert.equal((captured as { model?: string }).model, "gpt-x");
     assert.equal((captured as { max_tokens?: number }).max_tokens, 4096);
     assert.equal((captured as { stream?: boolean }).stream, true);
+  });
+
+  test("async onText를 순서대로 await해 다음 청크에 backpressure를 건다", async () => {
+    globalThis.fetch = async () =>
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"A"}}]}\n\n',
+        'data: {"choices":[{"delta":{"content":"B"}}]}\n\n',
+        "data: [DONE]\n\n",
+      ]);
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const calls: string[] = [];
+    const pending = streamTurn(oaClient(), {
+      system: "s",
+      messages: MSGS,
+      onText: async (chunk) => {
+        calls.push(`${chunk}:start`);
+        if (chunk === "A") await firstGate;
+        calls.push(`${chunk}:end`);
+      },
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(calls, ["A:start"]);
+    releaseFirst();
+    const result = await pending;
+    assert.equal(result.text, "AB");
+    assert.deepEqual(calls, ["A:start", "A:end", "B:start", "B:end"]);
+  });
+
+  test("onText rejection을 JSON parse 오류처럼 삼키지 않고 전파한다", async () => {
+    globalThis.fetch = async () =>
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"A"}}]}\n\n',
+        "data: [DONE]\n\n",
+      ]);
+    await assert.rejects(
+      streamTurn(oaClient(), {
+        system: "s",
+        messages: MSGS,
+        onText: async () => {
+          throw new Error("sink failed");
+        },
+      }),
+      /sink failed/,
+    );
   });
 
   test("400 max_completion_tokens 요구 시 파라미터명 바꿔 1회 재시도", async () => {
@@ -173,6 +226,72 @@ describe("openai-compatible: streamTurn", () => {
     assert.equal(isTransientApiError({ status: 500 }), true);
     assert.equal(isTransientApiError({ status: 429, type: "rate_limit_error" }), true);
     assert.equal(isTransientApiError({ status: 401 }), false);
+    assert.equal(isTransientApiError({ status: 500, _noRetry: true }), false);
+  });
+});
+
+describe("anthropic: streamTurn", () => {
+  test("raw async stream을 순회하며 async onText를 직렬 await한다", async () => {
+    const raw = {
+      messages: {
+        create: async (params: { stream?: boolean; system?: string }) => {
+          assert.equal(params.stream, true);
+          assert.ok(params.system?.includes(MATH_OUTPUT_GUIDANCE));
+          return {
+            async *[Symbol.asyncIterator]() {
+              yield {
+                type: "message_start",
+                message: { usage: { input_tokens: 3 } },
+              };
+              yield {
+                type: "content_block_delta",
+                delta: { type: "text_delta", text: "A" },
+              };
+              yield {
+                type: "content_block_delta",
+                delta: { type: "text_delta", text: "B" },
+              };
+              yield {
+                type: "message_delta",
+                usage: { output_tokens: 2 },
+              };
+            },
+          };
+        },
+      },
+    } as unknown as ClaudeClient["raw"];
+    const client: ClaudeClient = {
+      raw,
+      config: {
+        apiKey: "test",
+        model: "claude-test",
+        maxTokens: 100,
+      } as Config,
+    };
+    let releaseFirst!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const calls: string[] = [];
+    const pending = streamTurn(client, {
+      system: "anthropic system",
+      messages: MSGS,
+      onText: async (chunk) => {
+        calls.push(`${chunk}:start`);
+        if (chunk === "A") await firstGate;
+        calls.push(`${chunk}:end`);
+      },
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(calls, ["A:start"]);
+    releaseFirst();
+    const result = await pending;
+    assert.deepEqual(result, {
+      text: "AB",
+      usage: { input: 3, output: 2 },
+    });
+    assert.deepEqual(calls, ["A:start", "A:end", "B:start", "B:end"]);
   });
 });
 
@@ -181,6 +300,7 @@ describe("openai-compatible: completeOnce", () => {
     globalThis.fetch = async (_url, init) => {
       const body = JSON.parse(String(init?.body));
       assert.equal(body.stream, false);
+      assert.equal(body.messages[0].content, "s");
       return new Response(
         JSON.stringify({
           choices: [{ message: { content: "단답" } }],
@@ -192,6 +312,23 @@ describe("openai-compatible: completeOnce", () => {
     const r = await completeOnce(oaClient(), { system: "s", messages: MSGS });
     assert.equal(r.text, "단답");
     assert.deepEqual(r.usage, { input: 3, output: 4 });
+  });
+
+  test("수식 출력 경로에서만 math contract를 추가한다", async () => {
+    globalThis.fetch = async (_url, init) => {
+      const body = JSON.parse(String(init?.body));
+      assert.ok(body.messages[0].content.includes(MATH_OUTPUT_GUIDANCE));
+      return new Response(
+        JSON.stringify({ choices: [{ message: { content: "$x^2$" } }] }),
+        { status: 200 },
+      );
+    };
+    const r = await completeOnce(oaClient(), {
+      system: "노트를 작성해",
+      messages: MSGS,
+      mathOutput: true,
+    });
+    assert.equal(r.text, "$x^2$");
   });
 
   test("model/maxTokens 인자 override가 body에 반영", async () => {

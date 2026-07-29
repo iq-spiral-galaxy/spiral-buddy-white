@@ -5,8 +5,8 @@
 //
 // No real Anthropic call is ever made: a FAKE ClaudeClient is injected through
 // the createApi(config, { client }) DI seam. The fake drives both code paths:
-//   - streamTurn(): client.raw.messages.stream() → .on("text", cb) (sync) →
-//     await .finalMessage() (returns usage). Used by /lookup, /chapter-context,
+//   - streamTurn(): client.raw.messages.create({ stream:true }) → async iterator.
+//     Used by /lookup, /chapter-context,
 //     /session/start, /session/:id/message.
 //   - completeOnce(): client.raw.messages.create(). Used by /refine-prompt,
 //     /suggest (via suggestNext) and /session/:id/end (via generateNote).
@@ -62,32 +62,52 @@ function baseConfig(overrides: Partial<Config> = {}): Config {
 }
 
 // ── Fake Claude client ─────────────────────────────────────────────────────
-// streamTurn:   raw.messages.stream({...}) then stream.on("text", cb) then
-//               await stream.finalMessage(). The fake emits `text` synchronously
-//               inside .on() and returns usage from finalMessage().
+// streamTurn:   raw.messages.create({stream:true}) returns an async event stream.
 // completeOnce: raw.messages.create() returns { content:[{type:"text",text}], usage }.
 function fakeClient(
   text = '{"recommendedChapterId":"02-y.md","mode":"next-chapter","rationale":"r","relatedChapterIds":[]}',
+  options: {
+    failOnStreamCall?: number;
+    failBeforeTextOnStreamCall?: number;
+  } = {},
 ): ClaudeClient {
-  const stream: {
-    on(ev: string, cb: (c: string) => void): typeof stream;
-    finalMessage(): Promise<{ usage: { input_tokens: number; output_tokens: number } }>;
-  } = {
-    on(ev, cb) {
-      if (ev === "text") cb(text);
-      return stream;
-    },
-    async finalMessage() {
-      return { usage: { input_tokens: 5, output_tokens: 7 } };
-    },
-  };
+  let streamCalls = 0;
   const raw = {
     messages: {
-      stream: () => stream,
-      create: async () => ({
-        content: [{ type: "text", text }],
-        usage: { input_tokens: 5, output_tokens: 7 },
-      }),
+      create: async (params: { stream?: boolean }) => {
+        if (params.stream) {
+          streamCalls++;
+          const thisCall = streamCalls;
+          return {
+            async *[Symbol.asyncIterator]() {
+              yield {
+                type: "message_start",
+                message: { usage: { input_tokens: 5 } },
+              };
+              if (options.failBeforeTextOnStreamCall === thisCall) {
+                throw new Error("fake stream failed before text");
+              }
+              if (text) {
+                yield {
+                  type: "content_block_delta",
+                  delta: { type: "text_delta", text },
+                };
+              }
+              if (options.failOnStreamCall === thisCall) {
+                throw new Error("fake stream failed after text");
+              }
+              yield {
+                type: "message_delta",
+                usage: { output_tokens: 7 },
+              };
+            },
+          };
+        }
+        return {
+          content: [{ type: "text", text }],
+          usage: { input_tokens: 5, output_tokens: 7 },
+        };
+      },
     },
   } as unknown as ClaudeClient["raw"];
   return { raw, config: {} as Config };
@@ -665,6 +685,55 @@ describe("POST /session/:id/message", () => {
       ["assistant", "user", "assistant"],
     );
     assert.match(state.messages[1].content, /클래스 로더가 뭐야\?/);
+  });
+
+  test("부분 응답 뒤 실패해도 UI와 같은 assistant 내용을 세션에 보존한다", async () => {
+    const app = createApi(baseConfig(), {
+      client: fakeClient("부분 응답", { failOnStreamCall: 2 }),
+    });
+    const start = await postJson(app, "/session/start", {
+      chapterId: "01-x.md",
+      roadmapId: "jvm-deep-dive",
+    });
+    const sessionId = start.headers.get("X-Session-Id")!;
+    await start.text();
+
+    const res = await postJson(app, `/session/${sessionId}/message`, {
+      message: "중간에 끊겨도 남겨줘",
+    });
+    const visibleText = await res.text();
+    assert.match(visibleText, /^부분 응답/);
+    assert.match(visibleText, /응답이 중간에 멈췄습니다/);
+
+    const state = await (await app.request(`/session/${sessionId}`)).json();
+    assert.deepEqual(
+      state.messages.map((m: { role: string }) => m.role),
+      ["assistant", "user", "assistant"],
+    );
+    assert.equal(state.messages[2].content, visibleText);
+  });
+
+  test("assistant가 완전히 무응답일 때만 방금 user 메시지를 rollback한다", async () => {
+    const app = createApi(baseConfig(), {
+      client: fakeClient("정상 첫 응답", { failBeforeTextOnStreamCall: 2 }),
+    });
+    const start = await postJson(app, "/session/start", {
+      chapterId: "01-x.md",
+      roadmapId: "jvm-deep-dive",
+    });
+    const sessionId = start.headers.get("X-Session-Id")!;
+    await start.text();
+
+    const res = await postJson(app, `/session/${sessionId}/message`, {
+      message: "이 메시지는 rollback 대상",
+    });
+    assert.match(await res.text(), /응답을 받지 못했습니다/);
+
+    const state = await (await app.request(`/session/${sessionId}`)).json();
+    assert.deepEqual(
+      state.messages.map((m: { role: string }) => m.role),
+      ["assistant"],
+    );
   });
 });
 

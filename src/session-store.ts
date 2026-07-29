@@ -235,9 +235,9 @@ Excerpt: ${n.body.slice(0, 800)}`,
   const isTruncated = fullLen > CHAPTER_CONTENT_MAX;
   const isThin = fullLen < 300;
   const contentNote = isTruncated
-    ? `\n\n⚠️ 본문이 ${fullLen}자라 ${CHAPTER_CONTENT_MAX}자에서 잘림. 잘린 뒤 부분은 보지 못함 — 인용 보수적으로.`
+    ? `\n\n주의: 본문이 ${fullLen}자라 ${CHAPTER_CONTENT_MAX}자에서 잘림. 잘린 뒤 부분은 보지 못함 — 인용 보수적으로.`
     : isThin
-      ? `\n\n⚠️ 본문이 ${fullLen}자로 매우 짧음 (README 수준). 일반 지식 기반으로 진행하고 그 사실을 첫 메시지에 명시해줘.`
+      ? `\n\n주의: 본문이 ${fullLen}자로 매우 짧음 (README 수준). 일반 지식 기반으로 진행하고 그 사실을 첫 메시지에 명시해줘.`
       : "";
 
   return `오늘의 학습 세션을 시작하자. 컨텍스트는 아래.

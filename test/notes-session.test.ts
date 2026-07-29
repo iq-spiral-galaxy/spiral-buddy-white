@@ -79,15 +79,18 @@ describe("note-writer / renderTranscriptSection + parseTranscriptSection", () =>
       { role: "user", content: "ACID부터" },
     ];
     const out = renderTranscriptSection(transcript);
-    assert.match(out, /## 💬 전체 대화/);
+    assert.match(out, /## 전체 대화/);
+    assert.ok(!out.includes("## 💬"));
     // first message excluded → 2 messages reported
     assert.match(out, /펼쳐서 대화 전체 다시 보기 \(2개 메시지\)/);
     assert.match(out, /> \[!quote\]-/);
     // first message text must NOT leak
     assert.ok(!out.includes("INITIAL CONTEXT BLOCK"));
     // labels present
-    assert.match(out, /\*\*🤖 버디\*\*/);
-    assert.match(out, /\*\*🙋 나\*\*/);
+    assert.match(out, /\*\*버디\*\*/);
+    assert.match(out, /\*\*나\*\*/);
+    assert.ok(!out.includes("🤖"));
+    assert.ok(!out.includes("🙋"));
   });
 
   test("returns empty string when only the context message exists", () => {
@@ -144,6 +147,20 @@ describe("note-writer / renderTranscriptSection + parseTranscriptSection", () =>
     assert.equal(parsed[0]!.content, "질문: ACID가 뭐야?\n```sql\nSELECT 1;\n```");
     assert.equal(parsed[1]!.content, "원자성은 all-or-nothing 이지");
     assert.equal(parsed[2]!.content, "맞아.\n\n빈 줄도 보존되나?");
+  });
+
+  test("legacy emoji transcript heading도 계속 파싱한다", () => {
+    const transcript: ClaudeMessage[] = [
+      { role: "user", content: "context" },
+      { role: "assistant", content: "예전 노트의 대화" },
+    ];
+    const legacy = renderTranscriptSection(transcript)
+      .replace("## 전체 대화", "## 💬 전체 대화")
+      .replaceAll("**버디**", "**🤖 버디**")
+      .replaceAll("**나**", "**🙋 나**");
+    assert.deepEqual(parseTranscriptSection(legacy), [
+      { role: "assistant", content: "예전 노트의 대화" },
+    ]);
   });
 
   test("returns [] when no transcript section header present", () => {
@@ -293,7 +310,8 @@ describe("note-writer / renderLookupsSection", () => {
       { query: "mvcc", depth: "medium", response: "다중 버전", at: 3 },
     ];
     const out = renderLookupsSection(lookups);
-    assert.match(out, /## 🔍 학습 중 찾아본 표현 \(3\)/);
+    assert.match(out, /## 학습 중 찾아본 표현 \(3\)/);
+    assert.ok(!out.includes("## 🔍"));
     assert.match(out, /> \[!tip\]\+ idempotent · _간결_/);
     assert.match(out, /> \[!abstract\]- saga · _깊이_/);
     assert.match(out, /> \[!note\]- mvcc · _중간_/);

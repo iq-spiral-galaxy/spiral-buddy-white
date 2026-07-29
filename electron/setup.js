@@ -60,7 +60,7 @@ async function init() {
       .forEach((b) => (b.disabled = true));
     const note = document.createElement("div");
     note.className = "setup-presets-hint";
-    note.innerHTML = `⚠️ git CLI를 찾지 못했습니다. <code>git</code>을 설치한 뒤 다시 시도하세요. macOS: <code>xcode-select --install</code> · Windows: <a id="link-git" data-href="https://git-scm.com/download/win">git-scm.com</a> 에서 받기`;
+    note.innerHTML = `git CLI를 찾지 못했습니다. <code>git</code>을 설치한 뒤 다시 시도하세요. macOS: <code>xcode-select --install</code> · Windows: <a id="link-git" data-href="https://git-scm.com/download/win">git-scm.com</a> 에서 받기`;
     presetsContainer.parentNode.insertBefore(
       note,
       presetsContainer.nextSibling,
@@ -144,7 +144,7 @@ async function _runPreset(presetId, presetLabel) {
   const missing = want.filter((r) => !installed.has(r));
   if (missing.length === 0) {
     alert(
-      `${presetLabel} — 이미 ${want.length}개 모두 받음 ✓\n${installedRes.targetDir}`,
+      `${presetLabel} — 이미 ${want.length}개를 모두 받았습니다.\n${installedRes.targetDir}`,
     );
     roadmapRoot.value = installedRes.targetDir;
     return;
@@ -176,7 +176,7 @@ async function _runPreset(presetId, presetLabel) {
   saveBtn.textContent = "시작하기";
 
   if (!res?.ok) {
-    downloadProgress.textContent = `✗ 실패: ${res?.error ?? "unknown"}`;
+    downloadProgress.textContent = `받지 못했습니다: ${res?.error ?? "unknown"}`;
     return;
   }
   downloadDone = true;

@@ -103,7 +103,7 @@ async function main() {
       // Local
       const local = roadmaps.filter((r) => r.source === "local");
       if (local.length > 0) {
-        lines.push(`### 📁 Local 로드맵 (${local.length}개)\n`);
+        lines.push(`### Local 로드맵 (${local.length}개)\n`);
         lines.push("| 로드맵 | 챕터 | 학습 | 최대 depth | 마지막 학습 |");
         lines.push("|---|---:|---:|---:|---|");
         for (const r of local) {
@@ -116,7 +116,7 @@ async function main() {
       const curated = roadmaps.filter((r) => r.source === "curated");
       if (curated.length > 0) {
         lines.push(
-          `### 📚 Curated 설치됨 (${config.curatedOrg}, ${curated.length}개)\n`,
+          `### Curated 설치됨 (${config.curatedOrg}, ${curated.length}개)\n`,
         );
         lines.push("| 로드맵 | 챕터 | 학습 | 최대 depth | 마지막 학습 |");
         lines.push("|---|---:|---:|---:|---|");
@@ -152,7 +152,7 @@ async function main() {
           }
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
-          lines.push(`⚠️ Curated available 조회 실패: ${msg}`);
+          lines.push(`주의: Curated available 조회 실패: ${msg}`);
         }
       }
 
@@ -228,7 +228,7 @@ async function main() {
               content: [
                 {
                   type: "text",
-                  text: `ℹ️ \`${org}/${repo_name}\`는 이미 설치되어 있습니다.\n\n경로: \`${result.cachePath}\`\n\nspiral_list_chapters로 챕터를 확인하세요.`,
+                  text: `안내: \`${org}/${repo_name}\`는 이미 설치되어 있습니다.\n\n경로: \`${result.cachePath}\`\n\nspiral_list_chapters로 챕터를 확인하세요.`,
                 },
               ],
             };
@@ -252,7 +252,7 @@ async function main() {
             }
           } else {
             lines.push(
-              "⚠️ 클론은 됐지만 학습용 로드맵 형식(.md 2개+ 디렉토리)을 찾지 못했습니다.",
+              "주의: 클론은 됐지만 학습용 로드맵 형식(.md 2개+ 디렉토리)을 찾지 못했습니다.",
             );
           }
           lines.push("");
@@ -263,7 +263,7 @@ async function main() {
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           return {
-            content: [{ type: "text", text: `❌ 설치 실패: ${msg}` }],
+            content: [{ type: "text", text: `설치 실패: ${msg}` }],
             isError: true,
           };
         }
@@ -314,7 +314,7 @@ async function main() {
       const notes = await listSpiralNotes(vaultPath);
 
       const lines: string[] = [];
-      lines.push(`📖 **로드맵: ${roadmap.name}** (\`${roadmap.id}\`)\n`);
+      lines.push(`**로드맵: ${roadmap.name}** (\`${roadmap.id}\`)\n`);
       lines.push("| # | 챕터 | 진도 | 마지막 학습 |");
       lines.push("|---:|---|---|---|");
 
@@ -409,7 +409,7 @@ async function main() {
       const priorNotes = priorOnSame.slice(0, 5);
 
       const lines: string[] = [];
-      lines.push(`# 🌀 ${chapter.title}`);
+      lines.push(`# ${chapter.title}`);
       lines.push(
         `**Roadmap**: ${roadmap.name} · **Chapter**: \`${chapter.id}\` · **Next depth**: \`${nextDepth}\``,
       );
@@ -508,7 +508,7 @@ async function main() {
 
       const lines: string[] = [];
       lines.push(
-        `📝 **노트 인덱스** — ${scopeLabel} · ${notes.length}개 (표시 ${sliced.length}개)\n`,
+        `**노트 인덱스** — ${scopeLabel} · ${notes.length}개 (표시 ${sliced.length}개)\n`,
       );
       if (sliced.length === 0) {
         lines.push("_아직 저장된 노트가 없습니다._");
@@ -665,7 +665,7 @@ async function main() {
       if (missing.length > 0) {
         lines.push("");
         lines.push(
-          `⚠️ **누락된 섹션 자동 보충됨**: ${missing.map((s) => `\`${s}\``).join(", ")}`,
+          `주의: **누락된 섹션 자동 보충됨**: ${missing.map((s) => `\`${s}\``).join(", ")}`,
         );
         lines.push(
           `다음 세션에선 이 섹션들을 의식적으로 채워보면 노트 품질이 개선됩니다.`,
@@ -858,7 +858,7 @@ async function main() {
         lines.push("");
       }
       if (chapterMatches.length > 0) {
-        lines.push("## 🔖 챕터");
+        lines.push("## 챕터");
         lines.push("| 제목 | 로드맵 | chapter_id |");
         lines.push("|---|---|---|");
         for (const c of chapterMatches) {
@@ -867,7 +867,7 @@ async function main() {
         lines.push("");
       }
       if (noteMatches.length > 0) {
-        lines.push("## 📝 노트");
+        lines.push("## 노트");
         lines.push("| 제목 | depth | 날짜 | 로드맵 | 챕터 |");
         lines.push("|---|---:|---|---|---|");
         for (const n of noteMatches.slice(0, 15)) {

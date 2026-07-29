@@ -20,6 +20,26 @@ export interface ClaudeClient {
   baseUrl?: string | null;
 }
 
+const MATH_GUIDANCE_MARKER = "<!-- spiral-math-output-guidance -->";
+
+/**
+ * 모든 LLM 호출에 공통으로 붙는 수식 출력 계약.
+ * 화면/노트 렌더러가 같은 KaTeX 문법을 쓰므로 호출 경로별 프롬프트에
+ * 복제하지 않고 어댑터 경계에서 한 번만 강제한다.
+ */
+export const MATH_OUTPUT_GUIDANCE = `${MATH_GUIDANCE_MARKER}
+Math formatting contract:
+- Use only $...$ for inline math and $$...$$ for display math.
+- Never use \\(...\\), \\[...\\], or put LaTeX/math inside fenced code blocks. Fenced code blocks are only for actual source code.
+- Keep explanatory prose outside math delimiters. Put an important standalone formula in its own $$...$$ block.
+- Use common KaTeX 0.16-compatible TeX only. Fractions, roots, powers/subscripts, Greek letters, sums/products, limits, integrals, aligned equations, and small matrices are supported.
+- Avoid custom macros, package-dependent commands/environments, and raw Unicode lookalike math symbols when a TeX command exists.`;
+
+export function withMathOutputGuidance(system: string): string {
+  if (system.includes(MATH_GUIDANCE_MARKER)) return system;
+  return `${system.trimEnd()}\n\n${MATH_OUTPUT_GUIDANCE}`;
+}
+
 export function createClient(config: Config): ClaudeClient {
   // openai-compatible이어도 raw는 생성해 둔다(생성 자체는 네트워크 없음) —
   // 타입/테스트 하위호환을 위해 필드 형태를 바꾸지 않는 게 안전.
@@ -43,6 +63,7 @@ export function createClient(config: Config): ClaudeClient {
 export function isTransientApiError(err: unknown): boolean {
   if (!err || typeof err !== "object") return false;
   const e = err as Record<string, unknown>;
+  if (e._noRetry === true) return false;
   const status = typeof e.status === "number" ? e.status : null;
   if (status === 529 || status === 503 || status === 502 || status === 504) return true;
   if (status && status >= 500) return true;
@@ -268,32 +289,29 @@ async function openAiChatOnce(
       if (!t.startsWith("data:")) continue;
       const payload = t.slice(5).trim();
       if (payload === "[DONE]") continue;
+      let j: {
+        choices?: Array<{ delta?: { content?: string | null } }>;
+        usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
+      };
       try {
-        const j = JSON.parse(payload) as {
-          choices?: Array<{ delta?: { content?: string | null } }>;
-          usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
-        };
-        const chunk = j.choices?.[0]?.delta?.content;
-        if (chunk) {
-          fullText += chunk;
-          onTextStarted?.();
-          if (args.onText) {
-            const r = args.onText(chunk);
-            if (r && typeof (r as Promise<void>).catch === "function") {
-              (r as Promise<void>).catch((err) =>
-                console.error("onText error:", err),
-              );
-            }
-          }
-        }
-        if (j.usage) {
-          usage = {
-            input: j.usage.prompt_tokens ?? 0,
-            output: j.usage.completion_tokens ?? 0,
-          };
-        }
+        j = JSON.parse(payload) as typeof j;
       } catch {
         // 불완전/비JSON 프레임 — skip (keep-alive 등)
+        continue;
+      }
+      const chunk = j.choices?.[0]?.delta?.content;
+      if (chunk) {
+        fullText += chunk;
+        onTextStarted?.();
+        // 다음 네트워크 청크를 읽기 전에 소비자(stream.write 등)가 끝나야
+        // 순서와 backpressure가 보장된다. 오류도 호출자까지 전파한다.
+        await args.onText?.(chunk);
+      }
+      if (j.usage) {
+        usage = {
+          input: j.usage.prompt_tokens ?? 0,
+          output: j.usage.completion_tokens ?? 0,
+        };
       }
     }
   }
@@ -313,7 +331,11 @@ export async function streamTurn(
     maxTokens?: number;
   },
 ): Promise<{ text: string; usage: { input: number; output: number } }> {
-  const { system, messages, onText } = args;
+  const normalizedArgs = {
+    ...args,
+    system: withMathOutputGuidance(args.system),
+  };
+  const { system, messages, onText } = normalizedArgs;
 
   return withRetry(
     async () => {
@@ -324,7 +346,7 @@ export async function streamTurn(
       // 텍스트가 이미 흘러나간 후의 에러는 재시도하지 않음(중복 방지).
       if (client.provider === "openai-compatible") {
         try {
-          return await openAiChatOnce(client, args, true, () => {
+          return await openAiChatOnce(client, normalizedArgs, true, () => {
             textStarted = true;
           });
         } catch (err) {
@@ -337,33 +359,40 @@ export async function streamTurn(
         }
       }
 
-      const stream = client.raw.messages.stream({
+      // messages.stream() 편의 래퍼는 백그라운드에서 원시 스트림을 먼저
+      // 소비한다. raw async stream을 직접 순회해야 onText가 끝날 때까지
+      // 다음 이벤트를 읽지 않는 진짜 backpressure가 걸린다.
+      const stream = await client.raw.messages.create({
         model: args.model ?? client.config.model,
         max_tokens: args.maxTokens ?? client.config.maxTokens,
         system,
         messages,
-      });
-
-      stream.on("text", (chunk) => {
-        fullText += chunk;
-        textStarted = true;
-        if (onText) {
-          const result = onText(chunk);
-          if (result && typeof (result as Promise<void>).catch === "function") {
-            (result as Promise<void>).catch((err) =>
-              console.error("onText error:", err),
-            );
-          }
-        }
+        stream: true,
       });
 
       try {
-        const finalMessage = await stream.finalMessage();
+        let inputTokens = 0;
+        let outputTokens = 0;
+        for await (const event of stream) {
+          if (event.type === "message_start") {
+            inputTokens = event.message.usage.input_tokens;
+          } else if (event.type === "message_delta") {
+            outputTokens = event.usage.output_tokens;
+          } else if (
+            event.type === "content_block_delta" &&
+            event.delta.type === "text_delta"
+          ) {
+            const chunk = event.delta.text;
+            fullText += chunk;
+            textStarted = true;
+            await onText?.(chunk);
+          }
+        }
         return {
           text: fullText,
           usage: {
-            input: finalMessage.usage.input_tokens,
-            output: finalMessage.usage.output_tokens,
+            input: inputTokens,
+            output: outputTokens,
           },
         };
       } catch (err) {
@@ -396,18 +425,26 @@ export async function completeOnce(
     messages: ClaudeMessage[];
     maxTokens?: number;
     model?: string;
+    /** Markdown/학습 노트처럼 수식이 실제로 표시되는 출력에만 켠다. */
+    mathOutput?: boolean;
   },
 ): Promise<{ text: string; usage: { input: number; output: number } }> {
+  const normalizedArgs = {
+    ...args,
+    system: args.mathOutput
+      ? withMathOutputGuidance(args.system)
+      : args.system,
+  };
   return withRetry(
     async () => {
       if (client.provider === "openai-compatible") {
-        return openAiChatOnce(client, args, false);
+        return openAiChatOnce(client, normalizedArgs, false);
       }
 
       const response = await client.raw.messages.create({
         model: args.model ?? client.config.model,
         max_tokens: args.maxTokens ?? client.config.maxTokens,
-        system: args.system,
+        system: normalizedArgs.system,
         messages: args.messages,
       });
 

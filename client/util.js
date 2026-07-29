@@ -17,6 +17,20 @@ export function escapeAttr(s) {
   return escapeHtml(s);
 }
 
+/**
+ * 외부 로드맵/노트 데이터가 제목 앞에 붙인 장식 emoji를 UI에서 제거한다.
+ * 식별자나 저장 원문은 건드리지 않고 표시 직전에만 사용한다.
+ */
+export function cleanUiLabel(value) {
+  const source = String(value ?? "");
+  return source
+    .replace(
+      /^(?:(?:\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*|\p{Regional_Indicator}{2})[\s·:—-]*)+/u,
+      "",
+    )
+    .trimStart();
+}
+
 /** CSS 셀렉터/식별자 이스케이프 — CSS.escape 우선, 폴백 정규식. */
 export function cssEscape(s) {
   if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(s);

@@ -70,6 +70,14 @@ const ICON_SVG = {
   shuffle: `<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>`,
   dna: `<path d="M5 4c14 4 0 12 14 16"/><path d="M19 4c-14 4 0 12 -14 16"/><line x1="7" y1="8" x2="14" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="17" y2="16"/>`,
   search: `<circle cx="10.5" cy="10.5" r="6.5"/><line x1="15.5" y1="15.5" x2="21" y2="21"/>`,
+  bookmark: `<path d="M6 4.5A2.5 2.5 0 0 1 8.5 2h7A2.5 2.5 0 0 1 18 4.5V21l-6-3.8L6 21V4.5Z"/>`,
+  book: `<path d="M3 4.5A2.5 2.5 0 0 1 5.5 2H11a3 3 0 0 1 3 3v16a3 3 0 0 0-3-3H3V4.5Z"/><path d="M21 4.5A2.5 2.5 0 0 0 18.5 2H14v19a3 3 0 0 1 3-3h4V4.5Z"/>`,
+  note: `<path d="M6 2h8l4 4v16H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2Z"/><path d="M14 2v5h5M8 12h8M8 16h6"/>`,
+  mic: `<rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1M12 18v4M8 22h8"/>`,
+  download: `<path d="M12 3v12M7 10l5 5 5-5"/><path d="M5 20h14"/>`,
+  message: `<path d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-1-1.73V6a2 2 0 0 1 2-2Z"/>`,
+  check: `<polyline points="20 6 9 17 4 12"/>`,
+  sparkle: `<path d="M12 3.5l1.7 5.8 5.8 1.7-5.8 1.7L12 18.5l-1.7-5.8L4.5 11l5.8-1.7z"/><path d="M18.3 4.2l.5 1.7 1.7.5-1.7.5-.5 1.7-.5-1.7-1.7-.5 1.7-.5z"/>`,
   smartphone: `<rect x="6.5" y="2.5" width="11" height="19" rx="2.2"/><line x1="10" y1="5.5" x2="14" y2="5.5"/><circle cx="12" cy="18.5" r="0.8" fill="currentColor" stroke="none"/>`,
   // v0.5.55 — Backend 도메인용 wrench
   wrench: `<path d="M14.7 6.3a4.5 4.5 0 0 1 5.6 5.6L18 14l-4-4 0.7-2.1z"/><path d="M14 10l-9 9a2 2 0 0 1-3-3l9-9"/>`,
@@ -85,6 +93,11 @@ const ICON_SVG = {
 export function svgIcon(name, className = "inline-icon") {
   const body = ICON_SVG[name] ?? ICON_SVG.folder;
   return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+}
+
+export function uiIconHtml(name, className = "ui-symbol") {
+  const body = ICON_SVG[name] ?? ICON_SVG.note;
+  return `<svg class="${className}" width="1em" height="1em" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${body}</svg>`;
 }
 
 export function resolveIconName(entity, kind = "category") {

@@ -266,7 +266,6 @@ export function buildLearningHubMarkup({
         <section class="hub-progress" aria-labelledby="hub-progress-title">
           <div class="hub-section-heading">
             <div>
-              <span class="hub-section-kicker">LEARNING PATH</span>
               <h2 id="hub-progress-title">나선 진행률</h2>
             </div>
             <button type="button" class="hub-text-btn" data-hub-action="activity">활동 보기</button>
@@ -296,7 +295,6 @@ export function buildLearningHubMarkup({
         <section class="hub-recent" aria-labelledby="hub-recent-title">
           <div class="hub-section-heading">
             <div>
-              <span class="hub-section-kicker">LAST NOTE</span>
               <h2 id="hub-recent-title">최근에 남긴 노트</h2>
             </div>
             ${

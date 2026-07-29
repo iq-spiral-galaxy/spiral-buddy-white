@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   escapeHtml,
   escapeAttr,
+  cleanUiLabel,
   cssEscape,
   truncate,
   _relTime,
@@ -30,6 +31,7 @@ import {
   resolveIconName,
   rolePresetIconHtml,
   roadmapIconHtml,
+  uiIconHtml,
   DEPTH_ICONS,
   CONTEXT_ICON_SVG,
 } from "../client/icons.js";
@@ -88,6 +90,22 @@ describe("util.escapeAttr", () => {
     for (const i of inputs) {
       assert.equal(escapeAttr(i as any), escapeHtml(i as any));
     }
+  });
+});
+
+describe("util.cleanUiLabel", () => {
+  test("removes decorative emoji prefixes without changing the stored label body", () => {
+    assert.equal(cleanUiLabel("📚 Foundations"), "Foundations");
+    assert.equal(cleanUiLabel("⚛️ · 양자 컴퓨팅"), "양자 컴퓨팅");
+    assert.equal(cleanUiLabel("👩‍💻 — Backend"), "Backend");
+    assert.equal(cleanUiLabel("🇰🇷: 한국어"), "한국어");
+  });
+
+  test("preserves meaningful text, numbering and non-leading symbols", () => {
+    assert.equal(cleanUiLabel("01. Foundations"), "01. Foundations");
+    assert.equal(cleanUiLabel("C++ 기초"), "C++ 기초");
+    assert.equal(cleanUiLabel("Math 📐 Notes"), "Math 📐 Notes");
+    assert.equal(cleanUiLabel(null), "");
   });
 });
 
@@ -551,6 +569,20 @@ describe("icons.svgIcon", () => {
     assert.ok(out.includes('viewBox="0 0 24 24"'));
     assert.ok(out.includes('stroke="currentColor"'));
     assert.ok(out.includes('aria-hidden="true"'));
+  });
+});
+
+describe("icons.uiIconHtml", () => {
+  test("renders a compact accessible decorative SVG for UI labels", () => {
+    const out = uiIconHtml("mic", "voice-icon");
+    assert.match(out, /^<svg class="voice-icon"/);
+    assert.match(out, /width="1em" height="1em"/);
+    assert.match(out, /aria-hidden="true" focusable="false"/);
+    assert.match(out, /<rect x="9" y="2"/);
+  });
+
+  test("unknown names use the neutral note icon", () => {
+    assert.equal(uiIconHtml("missing"), uiIconHtml("note"));
   });
 });
 

@@ -305,16 +305,16 @@
       /* Spiral Buddy White — paper-first setup */
       :root {
         color-scheme: light;
-        --bg: #f5f7fb;
+        --bg: #faf7fa;
         --bg-elev: #ffffff;
-        --bg-elev-2: #edf2f9;
-        --border: #d8e0eb;
-        --border-soft: #e8edf3;
-        --text: #172033;
-        --text-dim: #5f6d80;
-        --text-faint: #8b96a7;
-        --accent: #1d5bd8;
-        --accent-warm: #1d5bd8;
+        --bg-elev-2: #f3eef3;
+        --border: #ddd3da;
+        --border-soft: #ece4ea;
+        --text: #211b24;
+        --text-dim: #665866;
+        --text-faint: #827380;
+        --accent: #d63384;
+        --accent-warm: #ec4899;
         --danger: #c93c45;
       }
       html {
@@ -404,11 +404,11 @@
       }
       input:focus {
         border-color: var(--accent);
-        box-shadow: 0 0 0 3px rgba(29, 91, 216, 0.12);
+        box-shadow: 0 0 0 3px rgba(214, 51, 132, 0.14);
       }
       code {
-        color: #1748aa;
-        background: #edf3ff;
+        color: #ad1f68;
+        background: #fbe9f3;
         border-radius: 4px;
         padding: 1px 4px;
       }
@@ -419,8 +419,8 @@
         color: var(--text-dim);
       }
       .pick-btn:hover {
-        background: #eef3fb;
-        border-color: #b8c7dc;
+        background: #f8eff5;
+        border-color: #dba9c4;
         color: var(--text);
       }
       .divider-text {
@@ -439,26 +439,26 @@
       }
       .download-card:hover:not(.disabled):not(.downloading):not(.done),
       .setup-preset:hover:not(:disabled) {
-        background: #f7f9fd;
-        border-color: #9eb6da;
+        background: #fff7fb;
+        border-color: #e7a6c8;
         box-shadow: none;
         transform: none;
       }
       .download-card-icon {
         color: var(--accent);
-        background: #edf3ff;
-        border-color: #cad8f0;
+        background: #fbe9f3;
+        border-color: #f0bed8;
       }
       .setup-preset.recommended {
-        background: #f3f6fd;
-        border-color: #9fb8e3;
+        background: #fff6fb;
+        border-color: #e58fbd;
       }
       .setup-preset.heavy {
-        border-color: #d8e0eb;
+        border-color: var(--border);
       }
       .setup-preset-tag {
-        color: #1748aa;
-        background: #e4edff;
+        color: #ad1f68;
+        background: #fbe9f3;
       }
       .setup-preset-tag.heavy {
         color: #76501c;
@@ -489,8 +489,8 @@
         box-shadow: none;
       }
       .primary:hover:not(:disabled) {
-        background: #1748aa;
-        border-color: #1748aa;
+        background: #ad1f68;
+        border-color: #ad1f68;
       }
     </style>
   </head>
@@ -531,8 +531,8 @@
       </div>
       <div class="hint">학습 노트가 저장될 위치. <code>.obsidian/</code> 디렉토리가 있는 vault 루트나 그 하위 폴더.</div>
       <div class="vault-detected hidden" id="vault-detected"></div>
-      <div class="hint hidden" id="vault-not-found">
-        ⚠️ Obsidian vault를 자동으로 찾지 못했어요.
+      <div class="hint hidden" id="vault-not-found" role="status">
+        Obsidian vault를 자동으로 찾지 못했어요.
         Obsidian이 없다면 <a id="link-obsidian" data-href="https://obsidian.md/download">obsidian.md에서 설치</a>한 뒤
         vault를 하나 만들고 위에서 그 폴더를 선택하세요.
       </div>
@@ -550,19 +550,19 @@
 
       <div class="setup-presets" id="setup-presets">
         <button type="button" class="setup-preset recommended" data-preset="foundations-first">
-          <div class="setup-preset-head"><span class="setup-preset-emoji">📖</span><strong>마음의 언어부터</strong><span class="setup-preset-tag">추천</span></div>
+          <div class="setup-preset-head"><span class="setup-preset-emoji" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4.5A2.5 2.5 0 0 1 5.5 2H11a3 3 0 0 1 3 3v16a3 3 0 0 0-3-3H3V4.5Z"/><path d="M21 4.5A2.5 2.5 0 0 0 18.5 2H14v19a3 3 0 0 1 3-3h4V4.5Z"/></svg></span><strong>마음의 언어부터</strong><span class="setup-preset-tag">추천</span></div>
           <div class="setup-preset-sub">Layer 0 — 의식 연구의 모국어 (5)</div>
         </button>
         <button type="button" class="setup-preset" data-preset="substrate-to-cognition">
-          <div class="setup-preset-head"><span class="setup-preset-emoji">💭</span><strong>신경 → 인지</strong></div>
+          <div class="setup-preset-head"><span class="setup-preset-emoji" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="7" r="2.5"/><circle cx="18" cy="17" r="2.5"/><path d="M8.5 11 15.5 8M8.5 13l7 3"/></svg></span><strong>신경 → 인지</strong></div>
           <div class="setup-preset-sub">Language · Neural Substrate · Cognition (15)</div>
         </button>
         <button type="button" class="setup-preset" data-preset="consciousness-self">
-          <div class="setup-preset-head"><span class="setup-preset-emoji">🌌</span><strong>의식·자아 탐구</strong></div>
+          <div class="setup-preset-head"><span class="setup-preset-emoji" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.5"/><ellipse cx="12" cy="12" rx="9" ry="4.5" transform="rotate(-24 12 12)"/><circle cx="19" cy="9" r="1" fill="currentColor" stroke="none"/></svg></span><strong>의식·자아 탐구</strong></div>
           <div class="setup-preset-sub">Language · Consciousness · The Self (13)</div>
         </button>
         <button type="button" class="setup-preset heavy" data-preset="all">
-          <div class="setup-preset-head"><span class="setup-preset-emoji">🧬</span><strong>전체 — 물질에서 경험까지</strong><span class="setup-preset-tag heavy">무거움</span></div>
+          <div class="setup-preset-head"><span class="setup-preset-emoji" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4c14 4 0 12 14 16M19 4C5 8 19 16 5 20"/><path d="M7 8h7M9 12h6M9 16h8"/></svg></span><strong>전체 — 물질에서 경험까지</strong><span class="setup-preset-tag heavy">무거움</span></div>
           <div class="setup-preset-sub">7개 레이어 전부 · Synthesis까지 (31)</div>
         </button>
       </div>
