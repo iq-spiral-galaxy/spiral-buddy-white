@@ -338,10 +338,22 @@ describe("client UI contracts", () => {
       productCss,
       /body\.light-mode \.composer-btn-col \{[\s\S]*?border: 1px solid var\(--white-line\);/,
     );
-    assert.match(html, /white-brand\.css\?v=0\.6\.11/);
-    assert.match(html, /helix\.css\?v=0\.6\.11/);
-    assert.match(html, /product-polish\.css\?v=0\.6\.11/);
-    assert.match(html, /app\.js\?v=0\.6\.11/);
+    assert.match(
+      productCss,
+      /\.composer-btn-col \{[\s\S]*?flex: 0 0 112px;[\s\S]*?grid-template-rows: repeat\(3, 36px\);/,
+    );
+    assert.match(
+      productCss,
+      /\.composer-btn-col[\s\S]*?> :is\(\.mic-btn, \.refine-btn, \.send-btn\) \{[\s\S]*?align-self: stretch !important;[\s\S]*?width: 100% !important;[\s\S]*?max-width: 100% !important;[\s\S]*?height: 36px !important;[\s\S]*?flex-direction: row !important;/,
+    );
+    assert.match(
+      productCss,
+      /body\.light-mode[\s\S]*?:is\([\s\S]*?#input,[\s\S]*?textarea\.lookup-direct-input,[\s\S]*?\.lookup-direct-context,[\s\S]*?\.lookup-question-text[\s\S]*?\)::placeholder \{[\s\S]*?background: transparent !important;[\s\S]*?background-color: transparent !important;/,
+    );
+    assert.match(html, /white-brand\.css\?v=0\.6\.12/);
+    assert.match(html, /helix\.css\?v=0\.6\.12/);
+    assert.match(html, /product-polish\.css\?v=0\.6\.12/);
+    assert.match(html, /app\.js\?v=0\.6\.12/);
   });
 
   test("the 820px mobile shell keeps the main column visible and hides inert resizers", () => {
