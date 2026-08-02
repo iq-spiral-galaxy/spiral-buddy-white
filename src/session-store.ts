@@ -66,6 +66,8 @@ export interface ActiveSession {
   model?: string;
   /** 이번 세션 진행 중 사용자가 Look-up 한 표현들 (간결/중간/깊이) */
   lookups: LookupEntry[];
+  /** 검증에서 드러난 최신 빈틈으로 시작한 경우 해당 attempt id. */
+  verificationAttemptId?: string;
   /**
    * v0.5.58 — 챕터 본문 맥락 요약 캐시.
    * key: hash(sessionId + targetMessageText + selectionText)
@@ -75,6 +77,26 @@ export interface ActiveSession {
 }
 
 const sessions = new Map<string, ActiveSession>();
+
+/**
+ * 같은 검증 빈틈에서 보강 세션을 둘 이상 만들려고 할 때 발생한다.
+ *
+ * pause는 클라이언트 UI 상태일 뿐 서버 세션은 `sessions`에 계속 남으므로,
+ * 이 검사는 진행 중인 세션과 잠시 멈춘 세션을 함께 보호한다. 저장된 세션도
+ * 서버 시작 시 `restorePersistedSessions()`가 먼저 복원하므로 재시작 뒤에도
+ * 같은 규칙이 적용된다.
+ */
+export class VerificationRemediationInProgressError extends Error {
+  readonly code = "remediation_in_progress" as const;
+
+  constructor(
+    readonly verificationAttemptId: string,
+    readonly existingSessionId: string,
+  ) {
+    super("이미 이 검증의 빈틈을 보강하는 학습이 진행 중입니다.");
+    this.name = "VerificationRemediationInProgressError";
+  }
+}
 
 // ─────────────────────────────────────────────────────────────
 // v0.5.72 — 세션 디스크 영속화.
@@ -187,7 +209,21 @@ export function createSession(args: {
   depth: number;
   related: SpiralNote[];
   model?: string;
+  verificationAttemptId?: string;
 }): ActiveSession {
+  if (args.verificationAttemptId) {
+    const existing = [...sessions.values()].find(
+      (session) =>
+        session.verificationAttemptId === args.verificationAttemptId,
+    );
+    if (existing) {
+      throw new VerificationRemediationInProgressError(
+        args.verificationAttemptId,
+        existing.id,
+      );
+    }
+  }
+
   const session: ActiveSession = {
     id: randomUUID(),
     chapter: args.chapter,
@@ -199,6 +235,7 @@ export function createSession(args: {
     totalOutputTokens: 0,
     model: args.model,
     lookups: [],
+    verificationAttemptId: args.verificationAttemptId,
   };
   sessions.set(session.id, session);
   return session;
@@ -218,6 +255,7 @@ export function buildInitialContext(
   chapter: Chapter,
   related: SpiralNote[],
   depth: number,
+  verificationContext?: string,
 ): string {
   const relatedBlock = related.length
     ? related
@@ -251,6 +289,8 @@ ${truncate(chapter.content, CHAPTER_CONTENT_MAX)}${contentNote}
 # 관련된 이전 학습 노트
 ${relatedBlock}
 
+${verificationContext ? `${verificationContext}\n` : ""}
+
 # 세션 가이드
 - depth가 1이면 처음 다루는 주제. 직관부터 시작.
 - depth가 2 이상이면 나선형 복귀. 이전 노트에서 흐릿했던 지점부터 찔러봐.
@@ -279,8 +319,14 @@ export function buildInitialContextBlocks(
   chapter: Chapter,
   related: SpiralNote[],
   depth: number,
+  verificationContext?: string,
 ): Anthropic.TextBlockParam[] {
-  const text = buildInitialContext(chapter, related, depth);
+  const text = buildInitialContext(
+    chapter,
+    related,
+    depth,
+    verificationContext,
+  );
   return [
     {
       type: "text",

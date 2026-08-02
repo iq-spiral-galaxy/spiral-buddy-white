@@ -409,6 +409,22 @@ describe("vault: noteBelongsToRoadmap", () => {
       false,
     );
   });
+
+  test("reconstructs modern repo + roadmap identity without cross-repo fallback", () => {
+    const n = makeNote({
+      roadmapId: null,
+      repo: "repo-a",
+      roadmapName: "rm",
+    });
+    assert.equal(
+      noteBelongsToRoadmap(n, { roadmapId: "repo-a/rm", roadmapName: "rm" }),
+      true,
+    );
+    assert.equal(
+      noteBelongsToRoadmap(n, { roadmapId: "repo-b/rm", roadmapName: "rm" }),
+      false,
+    );
+  });
 });
 
 // ===========================================================================
@@ -445,6 +461,16 @@ describe("vault: noteMatchesChapter", () => {
       chapter: "01. ACID",
     });
     assert.equal(noteMatchesChapter(n, target), true);
+  });
+
+  test("stage 2: modern repo identity blocks same-named roadmap in another repo", () => {
+    const n = makeNote({
+      roadmapId: null,
+      repo: "other-repo",
+      roadmapName: "rm",
+      chapter: "01. ACID",
+    });
+    assert.equal(noteMatchesChapter(n, target), false);
   });
 
   test("stage 2: roadmapId equality also satisfies the roadmapMatches branch", () => {

@@ -9,6 +9,7 @@ const [
   productCss,
   helixCss,
   learningHub,
+  verification,
   electronMain,
   mcp,
 ] =
@@ -19,11 +20,92 @@ const [
   readFile(new URL("../client/product-polish.css", import.meta.url), "utf8"),
   readFile(new URL("../client/helix.css", import.meta.url), "utf8"),
   readFile(new URL("../client/learning-hub.js", import.meta.url), "utf8"),
+  readFile(new URL("../client/verification.js", import.meta.url), "utf8"),
   readFile(new URL("../electron/main.cjs", import.meta.url), "utf8"),
   readFile(new URL("../src/mcp.ts", import.meta.url), "utf8"),
 ]);
 
 describe("client UI contracts", () => {
+  test("chapter verification restores unresolved gaps before requesting another card", () => {
+    const restoreBranch = verification.indexOf("async function restoreLatestGap");
+    const newCardRequest = verification.indexOf("const response = await requestCard(chapter, roadmapId)");
+    assert.ok(restoreBranch >= 0, "unresolved gap restoration branch must exist");
+    assert.ok(
+      restoreBranch < newCardRequest,
+      "the latest gap result must be restored before a new card can be requested",
+    );
+    assert.match(verification, /\/api\/verification\/attempt\?\$\{params\}/);
+    assert.match(verification, /근거의 정확성/);
+    assert.match(verification, /result\?\.reasoningGrounded === false[\s\S]*?"undetermined"/);
+    assert.match(
+      verification,
+      /\$\{!hasGap \? `<button[^`]+data-verification-action="next-card"[^`]+` : ""\}/,
+    );
+    assert.match(verification, /error\?\.code === "card_unavailable"/);
+    assert.match(verification, /error\?\.code === "unresolved_gap"/);
+    assert.match(verification, /await recoverUnresolvedGap\(chapter, epoch, roadmapId\)/);
+    const recovery = verification.slice(
+      verification.indexOf("async function recoverUnresolvedGap"),
+      verification.indexOf("async function load(chapter"),
+    );
+    assert.match(recovery, /await statusFor\(chapter, roadmapId\)/);
+    assert.match(recovery, /await restoreLatestGap\(chapter, refreshedStatus, epoch, roadmapId\)/);
+    assert.match(recovery, /action: "close"/);
+    assert.doesNotMatch(recovery, /action: "retry"/);
+    assert.match(verification, /id="verification-brief-title">챕터 검증/);
+    assert.match(verification, /safeMarkedInto\(prompt, "아래 내용을 챕터에서 배운 기준으로 판단해 주세요\."\)/);
+    assert.doesNotMatch(verification, /escapeHtml\(card\.title/);
+    assert.doesNotMatch(verification, /safeMarkedInto\(prompt, String\(card\.prompt/);
+    assert.match(verification, /range\.cloneContents\(\)/);
+    assert.match(verification, /fragment\.querySelectorAll\("\.math-src\[data-tex\]"\)/);
+    assert.match(verification, /math\?\.dataset\?\.tex/);
+    assert.match(verification, /math\.dataset\.display === "true"/);
+    assert.match(verification, /math\.replaceWith\(document\.createTextNode\(source\)\)/);
+    assert.match(verification, /fragment\.textContent/);
+    assert.match(verification, /function renderResultMarkdown\(root, attempt, result\)/);
+    assert.match(verification, /safeMarkedInto\(target, String\(value \?\? ""\)\)/);
+    assert.match(verification, /data-verification-md="attempt-rationale"/);
+    assert.match(verification, /data-verification-md="result-correction"/);
+    assert.match(verification, /data-verification-md="canonical-principle"/);
+    assert.match(verification, /data-verification-md="evidence-excerpt-/);
+    assert.match(verification, /current\.attempt = attempt;[\s\S]*?renderResult\(chapter, null, attempt, result\)/);
+    assert.match(verification, /result\?\.canStartDeeperSession \? `<button[^`]+data-verification-action="start-deeper"/);
+    assert.match(verification, /attemptId: current\.attempt\.id/);
+    assert.match(app, /startSession\(chapter\.id, \{ verificationAttemptId: attemptId \}\)/);
+    assert.match(
+      verification,
+      /if \(submission\.roadmapId !== getRoadmapId\(\)\) \{[\s\S]*?close\(\);[\s\S]*?return;/,
+    );
+    assert.match(verification, /roadmapId: submission\.roadmapId/);
+    assert.match(verification, /chapterId: submission\.chapter\.id/);
+    assert.match(verification, /cardId: submission\.card\.id/);
+    const switchRoadmapBlock = app.slice(
+      app.indexOf("async function switchRoadmap(roadmapId)"),
+      app.indexOf("function scrollToRecentChapter()"),
+    );
+    assert.ok(
+      switchRoadmapBlock.indexOf("verificationController.close()") <
+        switchRoadmapBlock.indexOf("state.activeRoadmapId = roadmapId"),
+      "switching roadmaps must close verification before changing the active id",
+    );
+    const installRoadmapBlock = app.slice(
+      app.indexOf("async function installCuratedRepo(repoName)"),
+      app.indexOf("async function switchRoadmap(roadmapId)"),
+    );
+    assert.ok(
+      installRoadmapBlock.indexOf("verificationController.close()") <
+        installRoadmapBlock.indexOf("state.activeRoadmapId = newOne.id"),
+      "activating an installed roadmap must also close verification first",
+    );
+    assert.match(app, /window\.matchMedia\("\(max-width: 760px\)"\)\.matches/);
+    assert.match(app, /verificationAutoCollapsedSidebar = true/);
+    assert.match(
+      app,
+      /shouldRestoreMobileSidebar[\s\S]*?document\.body\.classList\.contains\("sidebar-collapsed"\)[\s\S]*?els\.sidebarToggle\?\.click\(\)/,
+    );
+    assert.doesNotMatch(app, /verification-end-btn/);
+  });
+
   test("workspace management lives in Settings, not the primary sidebar", () => {
     assert.doesNotMatch(html, /id="workspace-section"/);
     assert.match(html, /data-panel="workspaces"/);
@@ -350,10 +432,11 @@ describe("client UI contracts", () => {
       productCss,
       /body\.light-mode[\s\S]*?:is\([\s\S]*?#input,[\s\S]*?textarea\.lookup-direct-input,[\s\S]*?\.lookup-direct-context,[\s\S]*?\.lookup-question-text[\s\S]*?\)::placeholder \{[\s\S]*?background: transparent !important;[\s\S]*?background-color: transparent !important;/,
     );
-    assert.match(html, /white-brand\.css\?v=0\.6\.12/);
-    assert.match(html, /helix\.css\?v=0\.6\.12/);
-    assert.match(html, /product-polish\.css\?v=0\.6\.12/);
-    assert.match(html, /app\.js\?v=0\.6\.12/);
+    assert.match(html, /white-brand\.css\?v=0\.6\.13/);
+    assert.match(html, /helix\.css\?v=0\.6\.13/);
+    assert.match(html, /product-polish\.css\?v=0\.6\.13/);
+    assert.match(html, /verification\.css\?v=0\.6\.13/);
+    assert.match(html, /app\.js\?v=0\.6\.13/);
   });
 
   test("the 820px mobile shell keeps the main column visible and hides inert resizers", () => {

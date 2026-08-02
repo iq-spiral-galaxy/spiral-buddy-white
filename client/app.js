@@ -42,6 +42,12 @@ import {
   buildLearningHubMarkup,
   getLatestHistoryNote,
 } from "./learning-hub.js";
+import {
+  createVerificationController,
+  isVerificationDue,
+  loadVerificationStatuses,
+  verificationChapterState,
+} from "./verification.js";
 
 // ──────────────────────────────────────────────────────────
 // State
@@ -85,6 +91,9 @@ const state = {
   quizLevel: 1,
   // 사이드바 검색 (v0.5.51)
   sidebarQuery: "",
+  // d1과 별도 축으로 저장되는 챕터 검증 상태.
+  verificationStatuses: new Map(),
+  justCompletedVerificationChapterId: null,
 };
 
 // localStorage에 마지막 로드맵 저장
@@ -130,6 +139,7 @@ function cacheEls() {
   els.historyList = $("history-list");
   els.topbar = $("current-chapter");
   els.messages = $("messages");
+  els.verificationView = $("verification-view");
   els.messagesWrap = $("messages-wrap");
   els.scrollBottomBtn = $("scroll-bottom-btn");
   els.lookupPanelBodyWrap = $("lookup-panel-body-wrap");
@@ -292,6 +302,7 @@ function wireChoiceGroup(selector) {
 
 document.addEventListener("DOMContentLoaded", async () => {
   cacheEls();
+  initVerification();
   wireEvents();
   applyTheme(getStoredTheme()); // 버튼 active 상태 동기화
   document.querySelectorAll(".theme-opt").forEach((btn) => {
@@ -428,6 +439,131 @@ function wireComposer() {
   });
 }
 
+let verificationController = null;
+let verificationAutoCollapsedSidebar = false;
+
+function verificationStatusFor(chapterId) {
+  return state.verificationStatuses.get(chapterId) ?? null;
+}
+
+function initVerification() {
+  if (!els.verificationView) return;
+  verificationController = createVerificationController({
+    root: els.verificationView,
+    getRoadmapId: () => state.activeRoadmapId,
+    onClose: () => {
+      const shouldRestoreMobileSidebar = verificationAutoCollapsedSidebar;
+      verificationAutoCollapsedSidebar = false;
+      if (!state.session) renderLearningHub();
+      updateTopbar();
+      if (
+        shouldRestoreMobileSidebar &&
+        document.body.classList.contains("sidebar-collapsed")
+      ) {
+        els.sidebarToggle?.click();
+      }
+    },
+    onStatusLoaded: ({ chapter, status, roadmapId }) => {
+      if (!status || roadmapId !== state.activeRoadmapId) return;
+      state.verificationStatuses.set(chapter.id, status);
+      renderChapters();
+      if (!verificationController?.isOpen() && !state.session) {
+        renderLearningHub();
+      }
+    },
+    onAttemptSaved: ({ chapter, attempt, result }) => {
+      // 제출 직후 검증 화면을 닫거나 다른 로드맵으로 전환해도
+      // 이전 로드맵의 늦은 응답이 현재 로드맵 배지를 덮지 않게 한다.
+      if (!attempt?.roadmapId || attempt.roadmapId !== state.activeRoadmapId) {
+        return;
+      }
+      const outcome =
+        result.reasoningGrounded === false
+          ? "undetermined"
+          : result.outcome;
+      state.verificationStatuses.set(chapter.id, {
+        eligible: true,
+        completedD1: true,
+        attemptsCount:
+          Number(verificationStatusFor(chapter.id)?.attemptsCount ?? 0) + 1,
+        latestAttempt: {
+          id: attempt.id,
+          outcome,
+          confidence: attempt.confidence,
+          reasoningGrounded: result.reasoningGrounded,
+          hasGap:
+            attempt.hasGap === true ||
+            result.canStartDeeperSession === true ||
+            result.reasoningGrounded === false ||
+            result.locationAccurate === false ||
+            outcome === "miss" ||
+            outcome === "false_alarm" ||
+            outcome === "undetermined",
+          summary: result.summary,
+          createdAt: attempt.createdAt ?? new Date().toISOString(),
+        },
+        nextCardAvailable: true,
+      });
+      state.justCompletedVerificationChapterId = null;
+      renderChapters();
+      // 닫힌 화면에서 저장 응답이 늦게 도착한 경우에도 허브 상태를 즉시 갱신한다.
+      if (!verificationController?.isOpen() && !state.session) {
+        renderLearningHub();
+      }
+    },
+    onStartDeeper: ({ chapter, attemptId }) => {
+      verificationAutoCollapsedSidebar = false;
+      state.justCompletedVerificationChapterId = null;
+      startSession(chapter.id, { verificationAttemptId: attemptId });
+    },
+  });
+}
+
+async function openChapterVerification(chapterOrId) {
+  const chapter =
+    typeof chapterOrId === "string"
+      ? state.chapters.find((item) => item.id === chapterOrId)
+      : chapterOrId;
+  if (!chapter || Number(chapter.maxDepth ?? 0) < 1) return;
+  const decision = await handleSessionInterruption();
+  if (decision === "cancel") return;
+  state.justCompletedVerificationChapterId = null;
+  verificationAutoCollapsedSidebar = false;
+  if (
+    window.matchMedia("(max-width: 760px)").matches &&
+    !document.body.classList.contains("sidebar-collapsed")
+  ) {
+    els.sidebarToggle?.click();
+    verificationAutoCollapsedSidebar = true;
+  }
+  verificationController?.open({
+    ...chapter,
+    title: cleanUiLabel(chapter.title),
+  });
+}
+
+function getVerificationHubFocus() {
+  if (state.session) return null;
+  const immediateId = state.justCompletedVerificationChapterId;
+  if (immediateId) {
+    const chapter = state.chapters.find((item) => item.id === immediateId);
+    if (chapter && Number(chapter.maxDepth ?? 0) >= 1) {
+      return { chapter, immediate: true, status: verificationStatusFor(chapter.id) };
+    }
+  }
+  const recentId = getRecentChapterId();
+  return (
+    [...state.chapters]
+      .sort((a, b) => {
+        if (a.id === recentId) return -1;
+        if (b.id === recentId) return 1;
+        return String(b.lastDate ?? "").localeCompare(String(a.lastDate ?? ""));
+      })
+      .map((chapter) => ({ chapter, status: verificationStatusFor(chapter.id) }))
+      .find(({ chapter, status }) => isVerificationDue(chapter, status)) ?? null
+  );
+}
+
 function getLatestPausedSession() {
   return [...readPausedList()].sort(
     (a, b) => Number(b.pausedAt ?? 0) - Number(a.pausedAt ?? 0),
@@ -453,6 +589,7 @@ function renderLearningHub({ loading = false } = {}) {
     title: cleanUiLabel(note.title),
   }));
   const pausedSession = getLatestPausedSession();
+  const verificationFocus = getVerificationHubFocus();
   els.messages.innerHTML = buildLearningHubMarkup({
     roadmapName,
     chapters,
@@ -465,6 +602,16 @@ function renderLearningHub({ loading = false } = {}) {
         }
       : null,
     canOpenSettings: Boolean(window.spiralSettings),
+    verificationFocus: verificationFocus
+      ? {
+          chapter: {
+            ...verificationFocus.chapter,
+            title: cleanUiLabel(verificationFocus.chapter.title),
+          },
+          status: verificationFocus.status,
+          immediate: verificationFocus.immediate === true,
+        }
+      : null,
     loading,
   });
   _scrollState.messagesStick = true;
@@ -496,6 +643,15 @@ function wireLearningHub() {
       trigger.disabled = true;
       await resumePausedSession(sessionId);
       if (!state.session) trigger.disabled = false;
+      return;
+    }
+
+    if (action === "verification") {
+      const chapterId = trigger.dataset.chapterId;
+      if (!chapterId) return;
+      trigger.disabled = true;
+      await openChapterVerification(chapterId);
+      if (!verificationController?.isOpen()) trigger.disabled = false;
       return;
     }
 
@@ -1201,6 +1357,7 @@ async function loadRoadmapData() {
   // 다른 로드맵의 완료/최근 상태가 새 로드맵의 로딩 화면에 섞이지 않게 한다.
   state.chapters = [];
   state.history = [];
+  state.verificationStatuses = new Map();
   els.chapterList.innerHTML = `<li class="loading">불러오는 중…</li>`;
   els.historyList.innerHTML = `<li class="loading">불러오는 중…</li>`;
   const chaptersTask = (async () => {
@@ -1214,6 +1371,16 @@ async function loadRoadmapData() {
       state.chapters = chaptersRes.chapters ?? [];
       renderChapters();
       if (!state.session) renderLearningHub();
+      try {
+        const statuses = await loadVerificationStatuses(roadmapId);
+        if (!isCurrent()) return;
+        state.verificationStatuses = statuses;
+        renderChapters();
+        if (!state.session) renderLearningHub();
+      } catch {
+        // 검증은 d1 학습 위에 얹는 선택 기능이다. 상태 조회 실패가
+        // 기존 학습 경로 로드를 막지 않도록 maxDepth 기반 CTA는 유지한다.
+      }
     } catch (error) {
       if (isAbortedRequest(error, controller.signal) || !isCurrent()) return;
       const reason = readableLoadError(error);
@@ -1996,6 +2163,9 @@ async function installCuratedRepo(repoName) {
       (r) => r.source === "curated" && r.id.includes(`/${repoName}`),
     );
     if (newOne) {
+      if (verificationController?.isOpen()) {
+        verificationController.close();
+      }
       state.activeRoadmapId = newOne.id;
       localStorage.setItem(LS_KEY, newOne.id);
     }
@@ -2191,6 +2361,9 @@ async function switchRoadmap(roadmapId) {
   const decision = await handleSessionInterruption();
   if (decision === "cancel") return;
 
+  if (verificationController?.isOpen()) {
+    verificationController.close();
+  }
   state.activeRoadmapId = roadmapId;
   localStorage.setItem(LS_KEY, roadmapId);
   setRoadmapListOpen(false);
@@ -2587,6 +2760,22 @@ function renderChapters() {
     const badge = visited
       ? `<span class="chapter-depth-pill" title="마지막 학습: ${escapeAttr(ch.lastDate ?? "")} · 총 ${ch.visitCount}회">d${ch.maxDepth}</span>`
       : `<span class="chapter-depth-pill empty"></span>`;
+    const verificationState = verificationChapterState(
+      ch,
+      verificationStatusFor(ch.id),
+    );
+    const verificationBadge = visited
+      ? `<span class="chapter-verification-status" data-verification-state="${escapeAttr(verificationState.key)}" title="${escapeAttr(verificationState.title)}">${escapeHtml(verificationState.label)}</span>`
+      : "";
+    const verificationBtn = visited
+      ? `<button type="button" role="menuitem" class="chapter-verification-btn" data-chapter-verify="${escapeAttr(ch.id)}" title="이 챕터의 이해 검증" aria-label="${escapeAttr(displayTitle)} 이해 검증">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="8"></circle>
+            <path d="M8.5 12.2 11 14.5l4.8-5"></path>
+          </svg>
+          <span class="chapter-action-label">${escapeHtml(verificationState.label || "검증")}</span>
+        </button>`
+      : "";
     const recentBadge = isRecent
       ? `<span class="chapter-last-badge" aria-label="마지막 학습 챕터" title="가장 최근에 학습한 챕터">마지막</span>`
       : "";
@@ -2630,7 +2819,7 @@ function renderChapters() {
       <button class="chapter-btn ${visited ? "visited" : ""}" data-id="${escapeAttr(ch.id)}"${isActive ? ' aria-current="step"' : ""}>
         <span class="num">${originalIdx + 1}.</span>
         <span class="title">${titleHtml}</span>
-        <span class="chapter-meta${!visited && !isRecent ? " empty" : ""}">${recentBadge}${badge}</span>
+        <span class="chapter-meta${!visited && !isRecent ? " empty" : ""}">${recentBadge}${verificationBadge}${badge}</span>
       </button>
       <span class="chapter-actions">
         <button type="button" class="chapter-actions-toggle" aria-label="${escapeAttr(displayTitle)} 챕터 메뉴 열기" aria-expanded="false" aria-haspopup="menu" title="챕터 메뉴">
@@ -2641,6 +2830,7 @@ function renderChapters() {
           </svg>
         </button>
         <span class="chapter-action-buttons" role="menu" aria-label="${escapeAttr(displayTitle)} 챕터 메뉴">
+          ${verificationBtn}
           ${aiBtn}
           ${openBtn}
           ${trashBtn}
@@ -2687,6 +2877,14 @@ function renderChapters() {
         const anchor = resolveActionsAnchor(aiTrigger);
         closeActionsMenu();
         openChapterAiCardPopover(anchor, ch);
+        return;
+      }
+      const verificationTrigger = e.target.closest("[data-chapter-verify]");
+      if (verificationTrigger) {
+        e.preventDefault();
+        e.stopPropagation();
+        closeActionsMenu();
+        openChapterVerification(ch);
         return;
       }
       // 노트 열기 클릭은 Obsidian 노트 열기로 분기
@@ -6239,6 +6437,7 @@ function showPastConversationModal(note, data) {
 let _sessionStartInFlight = false;
 
 async function startSession(chapterId) {
+  const { verificationAttemptId } = arguments[1] ?? {};
   if (_sessionStartInFlight) {
     setStatus("세션 시작 중이에요 — 잠시만요", "info");
     return;
@@ -6264,6 +6463,7 @@ async function startSession(chapterId) {
         chapterId,
         roadmapId: state.activeRoadmapId,
         model: state.selectedModel ?? undefined,
+        verificationAttemptId: verificationAttemptId ?? undefined,
       }),
     });
 
@@ -6286,7 +6486,13 @@ async function startSession(chapterId) {
       chapterTitle,
       roadmapId: decodeURIComponent(roadmapIdEnc),
       roadmapName: decodeURIComponent(roadmapNameEnc),
+      verificationAttemptId:
+        res.headers.get("X-Verification-Attempt-Id") ||
+        verificationAttemptId ||
+        null,
     };
+
+    state.justCompletedVerificationChapterId = null;
 
     // 서버가 세션 시작을 수락한 뒤에만 홈과 보조 노트를 비운다.
     // 네트워크 실패 시 사용자가 같은 CTA로 즉시 재시도할 수 있어야 한다.
@@ -6897,6 +7103,9 @@ async function endSession() {
     // 그 사이 새 세션 B가 시작됐다면(epoch 변동) B의 세션/입력을 건드리지 않는다.
     // 내가 종료한 세션이 여전히 현재 세션일 때만 정리 + 로드맵 갱신.
     if (_sessionEpoch === myEpoch && state.session?.id === endingSessionId) {
+      if (Number(result.depth ?? state.session.depth ?? 1) === 1) {
+        state.justCompletedVerificationChapterId = state.session.chapterId;
+      }
       state.session = null;
       state.messages = [];
       enableSessionUi(false);

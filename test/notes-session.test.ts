@@ -20,6 +20,7 @@ import {
   createSession,
   getSession,
   deleteSession,
+  VerificationRemediationInProgressError,
 } from "../src/session-store.js";
 import type { LookupEntry } from "../src/session-store.js";
 import {
@@ -377,6 +378,44 @@ describe("session-store / createSession + getSession + deleteSession", () => {
     assert.notEqual(a.id, b.id);
     deleteSession(a.id);
     deleteSession(b.id);
+  });
+
+  test("one live or paused server session reserves a verification remediation attempt", () => {
+    const verificationAttemptId = "attempt-reservation-test";
+    const first = createSession({
+      chapter: makeChapter(),
+      depth: 2,
+      related: [],
+      verificationAttemptId,
+    });
+
+    assert.throws(
+      () =>
+        createSession({
+          chapter: makeChapter(),
+          depth: 2,
+          related: [],
+          verificationAttemptId,
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof VerificationRemediationInProgressError);
+        assert.equal(error.code, "remediation_in_progress");
+        assert.equal(error.existingSessionId, first.id);
+        return true;
+      },
+    );
+
+    // pause는 서버에서 삭제하지 않으므로 위 예약을 그대로 사용한다. 명시적
+    // 취소/정상 완료로 세션을 지운 뒤에만 해당 attempt를 다시 점유할 수 있다.
+    deleteSession(first.id);
+    const replacement = createSession({
+      chapter: makeChapter(),
+      depth: 2,
+      related: [],
+      verificationAttemptId,
+    });
+    assert.notEqual(replacement.id, first.id);
+    deleteSession(replacement.id);
   });
 
   test("model is carried through when provided", () => {

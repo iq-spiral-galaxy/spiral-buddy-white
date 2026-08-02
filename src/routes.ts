@@ -47,6 +47,7 @@ import {
   getSession,
   deleteSession,
   persistSession,
+  VerificationRemediationInProgressError,
 } from "./session-store.js";
 import {
   listCuratedRepos,
@@ -63,6 +64,19 @@ import {
   findDomainForCategory,
 } from "./categories.js";
 import { mapWithConcurrency } from "./async-utils.js";
+import {
+  VerificationError,
+  getLatestVerificationGapContext,
+  getOrCreateVerificationCard,
+  getVerificationAttemptDetails,
+  getVerificationStatus,
+  getVerificationStatusBatch,
+  hasCompletedD1,
+  noteMatchesVerificationChapter,
+  renderVerificationGapContext,
+  submitVerificationAttempt,
+  type VerificationAttemptInput,
+} from "./chapter-verification.js";
 
 // GET /roadmaps 의 per-roadmap 보강 — 노트 진도(visited/maxDepth/depths/lastDate) +
 // 카테고리/도메인/계층(hierarchy) 부착. (GET /roadmaps 핸들러에서 분리.)
@@ -565,6 +579,214 @@ function registerChapterRoutes(app: Hono, config: Config, client: ClaudeClient) 
         { error: friendlyApiErrorMessage(e) || "미리보기 생성 실패" },
         500,
       );
+    }
+  });
+}
+
+function verificationErrorResponse(c: Context, error: unknown) {
+  if (!(error instanceof VerificationError)) {
+    return c.json(
+      { error: friendlyApiErrorMessage(error) || "검증 처리에 실패했습니다." },
+      500,
+    );
+  }
+  const status =
+    error.code === "locked"
+      ? 403
+      : error.code === "reasoning_unavailable"
+        ? 503
+        : error.code === "card_not_found" ||
+            error.code === "attempt_not_found"
+          ? 404
+          : error.code === "invalid_attempt"
+            ? 400
+            : error.code === "card_unavailable"
+              ? 422
+              : 409;
+  return c.json({ error: error.message, code: error.code }, status);
+}
+
+/**
+ * d1을 끝낸 챕터에 붙는 별도 검증 모드. 카드/시도는 SpiralNote가 아닌
+ * `.verification/*.json`에 저장되어 학습 depth와 활동 수를 오염시키지 않는다.
+ */
+function registerVerificationRoutes(
+  app: Hono,
+  config: Config,
+  client: ClaudeClient,
+) {
+  app.get("/verification/status", async (c) => {
+    if (!config.vaultPath) {
+      return c.json({ error: "Missing vault config" }, 400);
+    }
+    const roadmapId = c.req.query("roadmap_id") ?? null;
+    const chapterId = c.req.query("chapter_id") ?? null;
+    const roadmap = await resolveRoadmap(config, roadmapId);
+    if (!roadmap) return c.json({ error: "Roadmap not found" }, 404);
+
+    const [chapters, notes] = await Promise.all([
+      loadRoadmapChapters(roadmap),
+      listSpiralNotes(config.vaultPath),
+    ]);
+    if (chapterId) {
+      const chapter = chapters.find((candidate) => candidate.id === chapterId);
+      if (!chapter) return c.json({ error: "Chapter not found" }, 404);
+      const status = await getVerificationStatus(
+        config.vaultPath,
+        chapter,
+        notes,
+        chapters,
+      );
+      return c.json({ roadmapId: roadmap.id, chapterId: chapter.id, status });
+    }
+
+    const statuses = await getVerificationStatusBatch(
+      config.vaultPath,
+      chapters,
+      notes,
+    );
+    return c.json({ roadmapId: roadmap.id, chapters: statuses });
+  });
+
+  app.get("/verification/attempt", async (c) => {
+    if (!config.vaultPath) {
+      return c.json({ error: "Missing vault config" }, 400);
+    }
+    const roadmapId = c.req.query("roadmap_id") ?? null;
+    const chapterId = c.req.query("chapter_id") ?? null;
+    const attemptId = c.req.query("attempt_id") ?? null;
+    if (!roadmapId || !chapterId || !attemptId) {
+      return c.json(
+        { error: "roadmap_id, chapter_id, attempt_id required" },
+        400,
+      );
+    }
+    const roadmap = await resolveRoadmap(config, roadmapId);
+    if (!roadmap) return c.json({ error: "Roadmap not found" }, 404);
+    const [chapters, notes] = await Promise.all([
+      loadRoadmapChapters(roadmap),
+      listSpiralNotes(config.vaultPath),
+    ]);
+    const chapter = chapters.find((candidate) => candidate.id === chapterId);
+    if (!chapter) return c.json({ error: "Chapter not found" }, 404);
+    if (!hasCompletedD1(notes, chapter, chapters)) {
+      return c.json(
+        {
+          error: "d1 학습을 마치고 노트를 저장한 뒤 검증할 수 있습니다.",
+          code: "locked",
+        },
+        403,
+      );
+    }
+
+    try {
+      return c.json(
+        await getVerificationAttemptDetails({
+          vaultPath: config.vaultPath,
+          chapter,
+          attemptId,
+          notes,
+          roadmapChapters: chapters,
+        }),
+      );
+    } catch (error) {
+      return verificationErrorResponse(c, error);
+    }
+  });
+
+  app.post("/verification/card", async (c) => {
+    if (!config.vaultPath) {
+      return c.json({ error: "Missing vault config" }, 400);
+    }
+    const body = await c.req
+      .json<{
+        roadmapId?: string;
+        roadmap_id?: string;
+        chapterId?: string;
+        chapter_id?: string;
+        model?: string;
+      }>()
+      .catch(() => null);
+    const roadmapId = body?.roadmapId ?? body?.roadmap_id ?? null;
+    const chapterId = body?.chapterId ?? body?.chapter_id ?? null;
+    if (!roadmapId || !chapterId) {
+      return c.json({ error: "roadmapId, chapterId required" }, 400);
+    }
+    const roadmap = await resolveRoadmap(config, roadmapId);
+    if (!roadmap) return c.json({ error: "Roadmap not found" }, 404);
+    const [chapters, notes] = await Promise.all([
+      loadRoadmapChapters(roadmap),
+      listSpiralNotes(config.vaultPath),
+    ]);
+    const chapter = chapters.find((candidate) => candidate.id === chapterId);
+    if (!chapter) return c.json({ error: "Chapter not found" }, 404);
+
+    try {
+      return c.json(
+        await getOrCreateVerificationCard({
+          vaultPath: config.vaultPath,
+          chapter,
+          roadmapChapters: chapters,
+          notes,
+          client,
+          model: body?.model,
+        }),
+      );
+    } catch (error) {
+      return verificationErrorResponse(c, error);
+    }
+  });
+
+  app.post("/verification/attempt", async (c) => {
+    if (!config.vaultPath) {
+      return c.json({ error: "Missing vault config" }, 400);
+    }
+    const body = await c.req
+      .json<
+        Partial<VerificationAttemptInput> & {
+          roadmapId?: string;
+          roadmap_id?: string;
+          chapterId?: string;
+          chapter_id?: string;
+          model?: string;
+        }
+      >()
+      .catch(() => null);
+    const roadmapId = body?.roadmapId ?? body?.roadmap_id ?? null;
+    const chapterId = body?.chapterId ?? body?.chapter_id ?? null;
+    if (!roadmapId || !chapterId) {
+      return c.json({ error: "roadmapId, chapterId required" }, 400);
+    }
+    const roadmap = await resolveRoadmap(config, roadmapId);
+    if (!roadmap) return c.json({ error: "Roadmap not found" }, 404);
+    const [chapters, notes] = await Promise.all([
+      loadRoadmapChapters(roadmap),
+      listSpiralNotes(config.vaultPath),
+    ]);
+    const chapter = chapters.find((candidate) => candidate.id === chapterId);
+    if (!chapter) return c.json({ error: "Chapter not found" }, 404);
+
+    try {
+      return c.json(
+        await submitVerificationAttempt({
+          vaultPath: config.vaultPath,
+          chapter,
+          roadmapChapters: chapters,
+          notes,
+          client,
+          model: body?.model,
+          input: {
+            cardId: body?.cardId ?? "",
+            verdict: body?.verdict as VerificationAttemptInput["verdict"],
+            location: body?.location ?? "",
+            rationale: body?.rationale ?? "",
+            correction: body?.correction ?? "",
+            confidence: Number(body?.confidence),
+          },
+        }),
+      );
+    } catch (error) {
+      return verificationErrorResponse(c, error);
     }
   });
 }
@@ -1381,7 +1603,12 @@ function registerSessionRoutes(app: Hono, config: Config, client: ClaudeClient) 
 
   app.post("/session/start", async (c) => {
     const body = await c.req
-      .json<{ chapterId: string; roadmapId?: string; model?: string }>()
+      .json<{
+        chapterId: string;
+        roadmapId?: string;
+        model?: string;
+        verificationAttemptId?: string;
+      }>()
       .catch(() => null);
     if (!body?.chapterId) {
       return c.json({ error: "chapterId required" }, 400);
@@ -1405,12 +1632,14 @@ function registerSessionRoutes(app: Hono, config: Config, client: ClaudeClient) 
     // v0.5.47 fix: chapterTitle을 같이 넘겨야 신 schema (chapter_id 없음) 노트를 매칭.
     // 안 넘기면 같은 챕터를 d1 끝낸 후 다시 클릭해도 prior 0건으로 잡혀 d2로 안 올라감.
     const priorOnSame = allNotes.filter((n) =>
-      noteMatchesChapter(n, {
-        roadmapId: roadmap.id,
-        roadmapName: roadmap.name,
-        chapterId: chapter.id,
-        chapterTitle: chapter.title,
-      }),
+      body.verificationAttemptId
+        ? noteMatchesVerificationChapter(n, chapter, chapters)
+        : noteMatchesChapter(n, {
+            roadmapId: roadmap.id,
+            roadmapName: roadmap.name,
+            chapterId: chapter.id,
+            chapterTitle: chapter.title,
+          }),
     );
     const depth = priorOnSame.length + 1;
     let related = priorOnSame.slice(0, 5);
@@ -1449,17 +1678,65 @@ function registerSessionRoutes(app: Hono, config: Config, client: ClaudeClient) 
       related = [...related, ...crossLayer];
     }
 
-    const session = createSession({
-      chapter,
-      depth,
-      related,
-      model: body.model,
-    });
+    let verificationContext: string | undefined;
+    if (body.verificationAttemptId) {
+      // 과거 attempt JSON만으로 d2에 우회 진입하지 못하게 현재 d1 노트를 재확인한다.
+      if (!hasCompletedD1(allNotes, chapter, chapters)) {
+        return c.json(
+          {
+            error: "d1 학습 노트를 먼저 완료해야 검증의 빈틈을 이어갈 수 있습니다.",
+            code: "locked",
+          },
+          403,
+        );
+      }
+      try {
+        const gap = await getLatestVerificationGapContext({
+          vaultPath: config.vaultPath,
+          chapter,
+          attemptId: body.verificationAttemptId,
+          notes: allNotes,
+          roadmapChapters: chapters,
+        });
+        verificationContext = renderVerificationGapContext(gap);
+      } catch (error) {
+        return verificationErrorResponse(c, error);
+      }
+    }
+
+    let session: ReturnType<typeof createSession>;
+    try {
+      // 검사와 등록을 동기적으로 처리해 같은 검증의 중복 보강 세션을 막는다.
+      session = createSession({
+        chapter,
+        depth,
+        related,
+        model: body.model,
+        verificationAttemptId: body.verificationAttemptId,
+      });
+    } catch (error) {
+      if (error instanceof VerificationRemediationInProgressError) {
+        return c.json(
+          {
+            error:
+              "이미 이 검증의 빈틈을 보강하는 학습이 있습니다. 기존 학습을 이어가거나 폐기한 뒤 다시 시작해 주세요.",
+            code: error.code,
+          },
+          409,
+        );
+      }
+      throw error;
+    }
 
     // v0.5.59 — array of TextBlockParam with cache_control 마킹.
     // 같은 세션의 후속 turn에서 이 부트스트랩 메시지의 prefix(tools+system 포함)
     // 가 캐시 hit → 토큰 비용 90% 절감 (cache_read = 0.1x base).
-    const initialContextBlocks = buildInitialContextBlocks(chapter, related, depth);
+    const initialContextBlocks = buildInitialContextBlocks(
+      chapter,
+      related,
+      depth,
+      verificationContext,
+    );
     session.messages.push({ role: "user", content: initialContextBlocks });
 
     c.header("X-Session-Id", session.id);
@@ -1469,6 +1746,9 @@ function registerSessionRoutes(app: Hono, config: Config, client: ClaudeClient) 
     c.header("X-Roadmap-Name", encodeURIComponent(roadmap.name));
     c.header("X-Related-Count", String(related.length));
     c.header("X-Model", session.model ?? config.model);
+    if (body.verificationAttemptId) {
+      c.header("X-Verification-Attempt-Id", body.verificationAttemptId);
+    }
 
     return streamText(c, async (stream) => {
       let deliveredText = "";
@@ -1614,7 +1894,10 @@ function registerSessionRoutes(app: Hono, config: Config, client: ClaudeClient) 
           detail: `${note.topic} (depth ${session.depth})`,
         });
 
-        const writtenPath = await writeNewNote(vaultPath, note);
+        const writtenPath = await writeNewNote(vaultPath, {
+          ...note,
+          verificationAttemptId: session.verificationAttemptId ?? null,
+        });
 
         await send("stage", {
           stage: "saving",
@@ -1685,6 +1968,7 @@ function registerSessionRoutes(app: Hono, config: Config, client: ClaudeClient) 
       totalOutputTokens: session.totalOutputTokens,
       startedAt: session.startedAt,
       model: session.model ?? null,
+      verificationAttemptId: session.verificationAttemptId ?? null,
     });
   });
 }
@@ -1699,6 +1983,7 @@ export function createApi(config: Config, deps: { client?: ClaudeClient } = {}) 
   registerCoreRoutes(app, config);
   registerCuratedRoutes(app, config);
   registerChapterRoutes(app, config, client);
+  registerVerificationRoutes(app, config, client);
   registerSearchNotesRoutes(app, config);
   registerAiRoutes(app, config, client);
   registerSessionRoutes(app, config, client);

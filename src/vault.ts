@@ -23,6 +23,8 @@ export interface SpiralNote {
   /** 실제 파일 수정 시각. 같은 날짜의 세션 순서를 정확히 복원하는 데 사용. */
   modifiedAt: string;
   depth: number;
+  /** 이 노트가 특정 검증 빈틈에서 시작된 심화 학습이면 해당 attempt id. */
+  verificationAttemptId?: string | null;
   tags: string[];
   summary: string;
   body: string;
@@ -160,6 +162,10 @@ async function readNote(
       date: formatDate(fm.date),
       modifiedAt: stat.mtime.toISOString(),
       depth: typeof fm.depth === "number" ? fm.depth : 1,
+      verificationAttemptId:
+        typeof fm.verification_attempt === "string"
+          ? fm.verification_attempt
+          : null,
       tags: Array.isArray(fm.tags) ? (fm.tags as string[]) : [],
       summary: (fm.summary as string | undefined) ?? "",
       body: parsed.content.trim(),
@@ -210,6 +216,8 @@ export interface NewNote {
   /** 레포 내 roadmap path (예: "anatomy-of-good-tests"). flat이면 roadmapId와 동일. */
   roadmap: string;
   depth: number;
+  /** 검증 결과에서 이어진 심화 세션의 provenance. 일반 노트는 생략. */
+  verificationAttemptId?: string | null;
   tags: string[];
   summary: string;
   body: string;
@@ -256,6 +264,9 @@ export async function writeNewNote(
     `roadmap: "${escapeYaml(note.roadmap)}"`,
     `chapter: "${escapeYaml(note.topic)}"`,
     `depth: ${note.depth}`,
+    note.verificationAttemptId
+      ? `verification_attempt: "${escapeYaml(note.verificationAttemptId)}"`
+      : null,
     `date: ${date}`,
     `tags: [${note.tags.map((t) => `"${escapeYaml(t)}"`).join(", ")}]`,
     `summary: "${escapeYaml(note.summary)}"`,
@@ -363,6 +374,18 @@ export function noteMatchesChapter(
   note: SpiralNote,
   target: { roadmapId: string; roadmapName: string; chapterId: string; chapterTitle?: string },
 ): boolean {
+  // Modern notes either carry the legacy canonical roadmapId directly, or the
+  // same id split into `repo` + repo-relative `roadmap`. Once either identity is
+  // present it is authoritative: never fall through to display-name matching,
+  // which can mix two repositories that both contain e.g. "backend/search".
+  if (note.roadmapId && note.roadmapId !== target.roadmapId) return false;
+  if (note.repo) {
+    const reconstructed = note.roadmapName
+      ? `${note.repo}/${note.roadmapName}`
+      : note.repo;
+    if (reconstructed !== target.roadmapId) return false;
+  }
+
   // 1. roadmap_id + chapter_id 정확
   if (note.roadmapId) {
     if (note.roadmapId === target.roadmapId && note.chapterId === target.chapterId) {
@@ -403,6 +426,12 @@ export function noteBelongsToRoadmap(
 ): boolean {
   if (note.roadmapId) {
     return note.roadmapId === target.roadmapId;
+  }
+  if (note.repo) {
+    const reconstructed = note.roadmapName
+      ? `${note.repo}/${note.roadmapName}`
+      : note.repo;
+    return reconstructed === target.roadmapId;
   }
   return note.roadmapName === target.roadmapName;
 }

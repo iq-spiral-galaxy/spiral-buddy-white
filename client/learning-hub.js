@@ -179,6 +179,7 @@ export function buildLearningHubMarkup({
   history = [],
   recentChapterId = null,
   pausedSession = null,
+  verificationFocus = null,
   canOpenSettings = false,
   loading = false,
 } = {}) {
@@ -218,6 +219,26 @@ export function buildLearningHubMarkup({
     focusDepth = `d${selected.targetDepth}`;
   }
 
+  if (verificationFocus?.chapter) {
+    const verificationChapter = verificationFocus.chapter;
+    const latest = verificationFocus.status?.latestAttempt;
+    const needsReview = latest?.hasGap === true;
+    focusLabel = verificationFocus.immediate
+      ? "검증이 열렸어요"
+      : needsReview
+        ? "보강할 이해"
+        : "이해의 빈틈 확인";
+    focusTitle = verificationChapter.title || "제목 없는 챕터";
+    focusRationale = needsReview
+      ? "지난 판단에서 갈린 근거를 다시 확인하고, 놓친 지점에서 다음 나선을 시작해보세요."
+      : "그럴듯한 설명 하나를 판정해, 이해했다고 넘긴 부분까지 확인해보세요.";
+    focusMeta = `${roadmapName} · d1을 마친 챕터`;
+    primaryAction = "verification";
+    primaryLabel = needsReview ? "빈틈 다시 확인" : "90초 검증하기";
+    primaryData = ` data-chapter-id="${escapeAttr(verificationChapter.id)}"`;
+    focusDepth = "검증";
+  }
+
   if (hasPaused) {
     focusLabel = "멈춘 학습";
     focusTitle = pausedSession.chapterTitle || "이전 학습";
@@ -251,7 +272,7 @@ export function buildLearningHubMarkup({
             <span class="hub-focus-meta">${escapeHtml(focusMeta)}</span>
           </div>
           <div class="hub-focus-actions">
-            <button type="button" class="hub-btn hub-btn-primary" data-hub-action="${primaryAction}"${primaryData}>
+            <button type="button" class="hub-btn hub-btn-primary${primaryAction === "verification" ? " hub-btn-verification" : ""}" data-hub-action="${primaryAction}"${primaryData}>
               <span>${escapeHtml(primaryLabel)}</span>
               <span aria-hidden="true">→</span>
             </button>
