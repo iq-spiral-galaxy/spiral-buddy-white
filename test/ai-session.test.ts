@@ -69,12 +69,22 @@ function fakeClient(
   options: {
     failOnStreamCall?: number;
     failBeforeTextOnStreamCall?: number;
+    captureCreate?: (params: {
+      stream?: boolean;
+      max_tokens?: number;
+      system?: string;
+    }) => void;
   } = {},
 ): ClaudeClient {
   let streamCalls = 0;
   const raw = {
     messages: {
-      create: async (params: { stream?: boolean }) => {
+      create: async (params: {
+        stream?: boolean;
+        max_tokens?: number;
+        system?: string;
+      }) => {
+        options.captureCreate?.(params);
         if (params.stream) {
           streamCalls++;
           const thisCall = streamCalls;
@@ -393,6 +403,39 @@ describe("POST /lookup", () => {
     const res = await postJson(app, "/lookup", { query: "mvcc 격리수준" });
     assert.equal(res.status, 200);
     assert.match(await res.text(), /medium 설명/);
+  });
+
+  test("keeps enough output budget to finish every lookup depth cleanly", async () => {
+    const cases = [
+      { depth: "concise", maxTokens: 280 },
+      { depth: "medium", maxTokens: 1500 },
+      { depth: "deep", maxTokens: 3200 },
+      { depth: undefined, maxTokens: 1500 },
+      { depth: "legacy-client-value", maxTokens: 1500 },
+    ] as const;
+
+    for (const item of cases) {
+      const calls: Array<{
+        stream?: boolean;
+        max_tokens?: number;
+        system?: string;
+      }> = [];
+      const app = createApi(baseConfig(), {
+        client: fakeClient("완결된 설명", {
+          captureCreate: (params) => calls.push(params),
+        }),
+      });
+      const payload: Record<string, unknown> = { query: "file descriptor" };
+      if (item.depth !== undefined) payload.depth = item.depth;
+
+      const res = await postJson(app, "/lookup", payload);
+      assert.equal(res.status, 200);
+      await res.text();
+
+      const streamCall = calls.find((call) => call.stream);
+      assert.equal(streamCall?.max_tokens, item.maxTokens);
+      assert.match(streamCall?.system ?? "", /문장이나 목록 항목을 중간에서 끊지 않는다/);
+    }
   });
 
   test("400 when query missing or under 2 chars", async () => {

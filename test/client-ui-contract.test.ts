@@ -432,11 +432,11 @@ describe("client UI contracts", () => {
       productCss,
       /body\.light-mode[\s\S]*?:is\([\s\S]*?#input,[\s\S]*?textarea\.lookup-direct-input,[\s\S]*?\.lookup-direct-context,[\s\S]*?\.lookup-question-text[\s\S]*?\)::placeholder \{[\s\S]*?background: transparent !important;[\s\S]*?background-color: transparent !important;/,
     );
-    assert.match(html, /white-brand\.css\?v=0\.6\.13/);
-    assert.match(html, /helix\.css\?v=0\.6\.13/);
-    assert.match(html, /product-polish\.css\?v=0\.6\.13/);
-    assert.match(html, /verification\.css\?v=0\.6\.13/);
-    assert.match(html, /app\.js\?v=0\.6\.13/);
+    assert.match(html, /white-brand\.css\?v=0\.6\.14/);
+    assert.match(html, /helix\.css\?v=0\.6\.14/);
+    assert.match(html, /product-polish\.css\?v=0\.6\.14/);
+    assert.match(html, /verification\.css\?v=0\.6\.14/);
+    assert.match(html, /app\.js\?v=0\.6\.14/);
   });
 
   test("the 820px mobile shell keeps the main column visible and hides inert resizers", () => {
