@@ -66,6 +66,73 @@ describe("openai-compatible: streamTurn", () => {
     assert.deepEqual(r.usage, { input: 11, output: 7 });
   });
 
+  test("finish_reason length를 정규화하고 한 번만 이어 써 완결한다", async () => {
+    const bodies: Array<Record<string, unknown>> = [];
+    const chunks: string[] = [];
+    const seam = "DUPLICATE-SEAM-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    let n = 0;
+    globalThis.fetch = async (_url, init) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      n++;
+      if (n === 1) {
+        return sseResponse([
+          `data: {"choices":[{"delta":{"content":"앞부분 ${seam}"}}]}\n\n`,
+          'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\n',
+          "data: [DONE]\n\n",
+        ]);
+      }
+      return sseResponse([
+        `data: {"choices":[{"delta":{"content":"${seam} 뒤를 완결합니다."}}]}\n\n`,
+        'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\n',
+        "data: [DONE]\n\n",
+      ]);
+    };
+    const r = await streamTurn(oaClient(), {
+      system: "s",
+      messages: MSGS,
+      maxTokens: 4096,
+      continueOnLength: true,
+      onText: (chunk) => void chunks.push(chunk),
+    });
+    assert.equal(n, 2);
+    assert.equal(r.stopReason, "end_turn");
+    assert.equal(r.text, `앞부분 ${seam} 뒤를 완결합니다.`);
+    assert.equal(chunks.join(""), r.text);
+    const secondMessages = bodies[1]!.messages as Array<{ role: string; content: string }>;
+    assert.equal(secondMessages.at(-2)?.role, "assistant");
+    assert.match(secondMessages.at(-1)?.content ?? "", /Continue exactly/);
+  });
+
+  test("이어쓰기 1회도 length면 세 번째 호출 없이 제한 종료를 돌려준다", async () => {
+    let n = 0;
+    globalThis.fetch = async () => {
+      n++;
+      return sseResponse([
+        `data: {"choices":[{"delta":{"content":"part${n}"}}]}\n\n`,
+        'data: {"choices":[{"delta":{},"finish_reason":"length"}]}\n\n',
+        "data: [DONE]\n\n",
+      ]);
+    };
+    const r = await streamTurn(oaClient(), {
+      system: "s",
+      messages: MSGS,
+      continueOnLength: true,
+    });
+    assert.equal(n, 2);
+    assert.equal(r.text, "part1part2");
+    assert.equal(r.stopReason, "max_tokens");
+  });
+
+  test("마지막 SSE data 줄에 개행이 없어도 텍스트와 종료 사유를 보존", async () => {
+    globalThis.fetch = async () =>
+      sseResponse([
+        'data: {"choices":[{"delta":{"content":"마지막 문장"},"finish_reason":"MAX_TOKENS"}]}',
+      ]);
+    const r = await streamTurn(oaClient(), { system: "s", messages: MSGS });
+    assert.equal(r.text, "마지막 문장");
+    assert.equal(r.stopReason, "max_tokens");
+  });
+
   test("청크 경계가 프레임 중간에 걸려도 정확히 파싱", async () => {
     const whole =
       'data: {"choices":[{"delta":{"content":"가나다"}}]}\n' +
@@ -253,6 +320,7 @@ describe("anthropic: streamTurn", () => {
               };
               yield {
                 type: "message_delta",
+                delta: { stop_reason: "max_tokens" },
                 usage: { output_tokens: 2 },
               };
             },
@@ -290,6 +358,7 @@ describe("anthropic: streamTurn", () => {
     assert.deepEqual(result, {
       text: "AB",
       usage: { input: 3, output: 2 },
+      stopReason: "max_tokens",
     });
     assert.deepEqual(calls, ["A:start", "A:end", "B:start", "B:end"]);
   });
@@ -303,7 +372,7 @@ describe("openai-compatible: completeOnce", () => {
       assert.equal(body.messages[0].content, "s");
       return new Response(
         JSON.stringify({
-          choices: [{ message: { content: "단답" } }],
+          choices: [{ message: { content: "단답" }, finish_reason: "length" }],
           usage: { prompt_tokens: 3, completion_tokens: 4 },
         }),
         { status: 200 },
@@ -312,6 +381,7 @@ describe("openai-compatible: completeOnce", () => {
     const r = await completeOnce(oaClient(), { system: "s", messages: MSGS });
     assert.equal(r.text, "단답");
     assert.deepEqual(r.usage, { input: 3, output: 4 });
+    assert.equal(r.stopReason, "max_tokens");
   });
 
   test("수식 출력 경로에서만 math contract를 추가한다", async () => {

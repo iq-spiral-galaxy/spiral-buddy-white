@@ -160,7 +160,7 @@ ${body}`;
   const { text } = await completeOnce(client, {
     system: PREVIEW_SYSTEM,
     messages: [{ role: "user", content: userMessage }],
-    maxTokens: 800,
+    maxTokens: 4096,
     model,
     mathOutput: true,
   });

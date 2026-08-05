@@ -123,7 +123,9 @@ export function loadConfig(): Config {
   return {
     apiKey,
     model: process.env.SPIRAL_MODEL ?? "claude-sonnet-5",
-    maxTokens: Number.parseInt(process.env.SPIRAL_MAX_TOKENS ?? "4096", 10),
+    // reasoning 모델은 내부 추론도 출력 예산을 함께 소비한다. 짧은 답을
+    // 강제하는 건 prompt가 맡고, 기본 상한은 긴 코드/수식도 완결되게 둔다.
+    maxTokens: Number.parseInt(process.env.SPIRAL_MAX_TOKENS ?? "8192", 10),
     llmProvider,
     llmBaseUrl,
     roadmapRoot,

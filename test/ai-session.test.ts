@@ -407,11 +407,11 @@ describe("POST /lookup", () => {
 
   test("keeps enough output budget to finish every lookup depth cleanly", async () => {
     const cases = [
-      { depth: "concise", maxTokens: 280 },
-      { depth: "medium", maxTokens: 1500 },
-      { depth: "deep", maxTokens: 3200 },
-      { depth: undefined, maxTokens: 1500 },
-      { depth: "legacy-client-value", maxTokens: 1500 },
+      { depth: "concise", maxTokens: 2048 },
+      { depth: "medium", maxTokens: 8192 },
+      { depth: "deep", maxTokens: 16000 },
+      { depth: undefined, maxTokens: 8192 },
+      { depth: "legacy-client-value", maxTokens: 8192 },
     ] as const;
 
     for (const item of cases) {
@@ -436,6 +436,23 @@ describe("POST /lookup", () => {
       assert.equal(streamCall?.max_tokens, item.maxTokens);
       assert.match(streamCall?.system ?? "", /문장이나 목록 항목을 중간에서 끊지 않는다/);
     }
+  });
+
+  test("추가 질문도 별도 작은 cap 없이 medium의 8192 예산을 사용한다", async () => {
+    const calls: Array<{ stream?: boolean; max_tokens?: number }> = [];
+    const app = createApi(baseConfig(), {
+      client: fakeClient("추가 질문까지 완결된 설명", {
+        captureCreate: (params) => calls.push(params),
+      }),
+    });
+    const res = await postJson(app, "/lookup", {
+      query: "Body frame",
+      depth: "medium",
+      userQuestion: "하나의 채널에서 바디를 나눠 보내는 의미가 뭐야?",
+    });
+    assert.equal(res.status, 200);
+    assert.match(await res.text(), /완결된 설명/);
+    assert.equal(calls.find((call) => call.stream)?.max_tokens, 8192);
   });
 
   test("400 when query missing or under 2 chars", async () => {

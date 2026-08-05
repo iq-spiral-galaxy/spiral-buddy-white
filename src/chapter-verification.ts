@@ -734,7 +734,7 @@ async function generateGroundedCard(
         },
       ],
       model,
-      maxTokens: 1800,
+      maxTokens: 8192,
       mathOutput: true,
     });
     const parsed = safeJsonParse(text);
@@ -761,7 +761,7 @@ async function generateGroundedCard(
         },
       ],
       model,
-      maxTokens: 500,
+      maxTokens: 4096,
       mathOutput: true,
     });
     const verified = safeJsonParse(verifierText);
@@ -1021,7 +1021,7 @@ async function evaluateAttemptReasoning(args: {
         },
       ],
       model: args.model,
-      maxTokens: 450,
+      maxTokens: 4096,
       mathOutput: true,
     });
     const parsed = safeJsonParse(text);

@@ -20,6 +20,25 @@ export interface ClaudeClient {
   baseUrl?: string | null;
 }
 
+export interface LlmTurnResult {
+  text: string;
+  usage: { input: number; output: number };
+  /** Provider가 알려 준 정상/제한 종료 사유. 오래된 호환 서버는 생략할 수 있다. */
+  stopReason?: string;
+}
+
+interface StreamTurnArgs {
+  system: string;
+  messages: ClaudeMessage[];
+  onText?: (chunk: string) => void | Promise<void>;
+  model?: string;
+  maxTokens?: number;
+  /** 출력 한도 종료를 감지하면 이미 쓴 답변 다음부터 한 번 더 이어 쓴다. */
+  continueOnLength?: boolean;
+  /** 기본 1회, 안전상 최대 2회. */
+  maxContinuations?: number;
+}
+
 const MATH_GUIDANCE_MARKER = "<!-- spiral-math-output-guidance -->";
 
 /**
@@ -201,6 +220,23 @@ async function openAiHttpError(res: Response): Promise<Error> {
   return e;
 }
 
+/** Provider마다 다른 종료 사유를 호출부가 하나의 규칙으로 다룰 수 있게 한다. */
+function normalizeStopReason(reason: string | null | undefined): string | undefined {
+  if (!reason) return undefined;
+  const normalized = reason.trim().toLowerCase();
+  if (
+    normalized === "length" ||
+    normalized === "max_tokens" ||
+    normalized === "max_output_tokens" ||
+    normalized === "max_completion_tokens" ||
+    normalized === "token_limit"
+  ) {
+    return "max_tokens";
+  }
+  if (normalized === "stop" || normalized === "end_turn") return "end_turn";
+  return normalized;
+}
+
 /**
  * chat/completions 요청 1회. stream=true면 SSE를 파싱해 onText로 흘림.
  * max_tokens를 거부하는 신형 OpenAI 모델(max_completion_tokens 요구)은
@@ -217,7 +253,7 @@ async function openAiChatOnce(
   },
   stream: boolean,
   onTextStarted?: () => void,
-): Promise<{ text: string; usage: { input: number; output: number } }> {
+): Promise<LlmTurnResult> {
   const base = (client.baseUrl ?? "").replace(/\/+$/, "");
   if (!base) {
     throw new Error(
@@ -258,15 +294,20 @@ async function openAiChatOnce(
   // ── non-stream ──
   if (!stream) {
     const data = (await res.json()) as {
-      choices?: Array<{ message?: { content?: string | null } }>;
+      choices?: Array<{
+        message?: { content?: string | null };
+        finish_reason?: string | null;
+      }>;
       usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
+    const stopReason = normalizeStopReason(data.choices?.[0]?.finish_reason);
     return {
       text: data.choices?.[0]?.message?.content ?? "",
       usage: {
         input: data.usage?.prompt_tokens ?? 0,
         output: data.usage?.completion_tokens ?? 0,
       },
+      ...(typeof stopReason === "string" ? { stopReason } : {}),
     };
   }
 
@@ -277,6 +318,44 @@ async function openAiChatOnce(
   let buf = "";
   let fullText = "";
   let usage = { input: 0, output: 0 };
+  let stopReason: string | undefined;
+  const processSseLine = async (line: string) => {
+    const t = line.trim();
+    if (!t.startsWith("data:")) return;
+    const payload = t.slice(5).trim();
+    if (!payload || payload === "[DONE]") return;
+    let j: {
+      choices?: Array<{
+        delta?: { content?: string | null };
+        finish_reason?: string | null;
+      }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
+    };
+    try {
+      j = JSON.parse(payload) as typeof j;
+    } catch {
+      // 비JSON 프레임 — keep-alive나 provider 전용 메타데이터.
+      return;
+    }
+    const choice = j.choices?.[0];
+    const chunk = choice?.delta?.content;
+    if (chunk) {
+      fullText += chunk;
+      onTextStarted?.();
+      // 다음 네트워크 청크를 읽기 전에 소비자(stream.write 등)가 끝나야
+      // 순서와 backpressure가 보장된다. 오류도 호출자까지 전파한다.
+      await args.onText?.(chunk);
+    }
+    if (typeof choice?.finish_reason === "string") {
+      stopReason = normalizeStopReason(choice.finish_reason);
+    }
+    if (j.usage) {
+      usage = {
+        input: j.usage.prompt_tokens ?? 0,
+        output: j.usage.completion_tokens ?? 0,
+      };
+    }
+  };
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
@@ -285,52 +364,45 @@ async function openAiChatOnce(
     const lines = buf.split("\n");
     buf = lines.pop() ?? "";
     for (const line of lines) {
-      const t = line.trim();
-      if (!t.startsWith("data:")) continue;
-      const payload = t.slice(5).trim();
-      if (payload === "[DONE]") continue;
-      let j: {
-        choices?: Array<{ delta?: { content?: string | null } }>;
-        usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
-      };
-      try {
-        j = JSON.parse(payload) as typeof j;
-      } catch {
-        // 불완전/비JSON 프레임 — skip (keep-alive 등)
-        continue;
-      }
-      const chunk = j.choices?.[0]?.delta?.content;
-      if (chunk) {
-        fullText += chunk;
-        onTextStarted?.();
-        // 다음 네트워크 청크를 읽기 전에 소비자(stream.write 등)가 끝나야
-        // 순서와 backpressure가 보장된다. 오류도 호출자까지 전파한다.
-        await args.onText?.(chunk);
-      }
-      if (j.usage) {
-        usage = {
-          input: j.usage.prompt_tokens ?? 0,
-          output: j.usage.completion_tokens ?? 0,
-        };
-      }
+      await processSseLine(line);
     }
   }
-  return { text: fullText, usage };
+  // 일부 OpenAI 호환 서버는 마지막 data 프레임 뒤 개행 없이 연결을 닫는다.
+  // decoder와 buf를 flush하지 않으면 마지막 문장/finish_reason이 통째로 유실된다.
+  buf += decoder.decode();
+  for (const line of buf.split("\n")) await processSseLine(line);
+  return {
+    text: fullText,
+    usage,
+    ...(stopReason ? { stopReason } : {}),
+  };
+}
+
+function stoppedByOutputLimit(reason?: string): boolean {
+  return normalizeStopReason(reason) === "max_tokens";
+}
+
+const CONTINUE_AFTER_LIMIT = `The previous response stopped only because it reached the output-token limit.
+Continue exactly where it stopped. Do not repeat any completed sentence, heading, list item, or code block. Complete the unfinished thought and any essential remaining answer, then end with a complete sentence. Output only the continuation.`;
+
+/** 이어쓰기 모델이 앞부분을 조금 반복해도 화면/저장본에는 한 번만 남긴다. */
+function removeRepeatedSeam(existing: string, continuation: string): string {
+  const max = Math.min(500, existing.length, continuation.length);
+  for (let size = max; size >= 24; size--) {
+    if (existing.endsWith(continuation.slice(0, size))) {
+      return continuation.slice(size);
+    }
+  }
+  return continuation;
 }
 
 /** Streams an assistant turn. onText fires per text chunk (sync or async).
  *  과부하/일시적 에러 시 stream 시작 전이면 retry. 일단 텍스트가 흘러나간 후 에러나면 retry하지 않음.
  */
-export async function streamTurn(
+async function streamTurnOnce(
   client: ClaudeClient,
-  args: {
-    system: string;
-    messages: ClaudeMessage[];
-    onText?: (chunk: string) => void | Promise<void>;
-    model?: string;
-    maxTokens?: number;
-  },
-): Promise<{ text: string; usage: { input: number; output: number } }> {
+  args: StreamTurnArgs,
+): Promise<LlmTurnResult> {
   const normalizedArgs = {
     ...args,
     system: withMathOutputGuidance(args.system),
@@ -373,11 +445,15 @@ export async function streamTurn(
       try {
         let inputTokens = 0;
         let outputTokens = 0;
+        let stopReason: string | undefined;
         for await (const event of stream) {
           if (event.type === "message_start") {
             inputTokens = event.message.usage.input_tokens;
           } else if (event.type === "message_delta") {
             outputTokens = event.usage.output_tokens;
+            if (typeof event.delta?.stop_reason === "string") {
+              stopReason = normalizeStopReason(event.delta.stop_reason);
+            }
           } else if (
             event.type === "content_block_delta" &&
             event.delta.type === "text_delta"
@@ -394,6 +470,7 @@ export async function streamTurn(
             input: inputTokens,
             output: outputTokens,
           },
+          ...(stopReason ? { stopReason } : {}),
         };
       } catch (err) {
         // 텍스트가 이미 클라이언트로 흘러나간 후 에러나면 재시도해도 중복만 발생함.
@@ -417,6 +494,71 @@ export async function streamTurn(
   );
 }
 
+/**
+ * Streams an assistant turn. 출력 제한에 닿은 사용자용 응답은 선택적으로
+ * 한 번 이어 받아, 잘린 문장 대신 완결된 답변을 화면과 저장본에 동일하게 남긴다.
+ */
+export async function streamTurn(
+  client: ClaudeClient,
+  args: StreamTurnArgs,
+): Promise<LlmTurnResult> {
+  const first = await streamTurnOnce(client, args);
+  if (!args.continueOnLength || !stoppedByOutputLimit(first.stopReason)) {
+    return first;
+  }
+
+  const maxContinuations = Math.min(
+    2,
+    Math.max(1, Math.trunc(args.maxContinuations ?? 1)),
+  );
+  let text = first.text;
+  let usage = { ...first.usage };
+  let stopReason = first.stopReason;
+
+  for (
+    let attempt = 0;
+    attempt < maxContinuations && stoppedByOutputLimit(stopReason);
+    attempt++
+  ) {
+    let buffered = "";
+    const continuationMessages: ClaudeMessage[] = text.trim()
+      ? [
+          ...args.messages,
+          { role: "assistant", content: text },
+          { role: "user", content: CONTINUE_AFTER_LIMIT },
+        ]
+      : [
+          ...args.messages,
+          {
+            role: "user",
+            content: `${CONTINUE_AFTER_LIMIT}\n\nNo visible answer was produced in the previous attempt, so answer from the beginning this time.`,
+          },
+        ];
+    const next = await streamTurnOnce(client, {
+      ...args,
+      messages: continuationMessages,
+      continueOnLength: false,
+      onText: (chunk) => {
+        buffered += chunk;
+      },
+    });
+    const append = removeRepeatedSeam(text, buffered);
+    if (append) await args.onText?.(append);
+    text += append;
+    usage = {
+      input: usage.input + next.usage.input,
+      output: usage.output + next.usage.output,
+    };
+    stopReason = next.stopReason;
+  }
+
+  return {
+    text,
+    usage,
+    ...(stopReason ? { stopReason } : {}),
+  };
+}
+
 /** Non-streaming single-shot completion. 일시적 에러 시 자동 재시도. */
 export async function completeOnce(
   client: ClaudeClient,
@@ -428,7 +570,7 @@ export async function completeOnce(
     /** Markdown/학습 노트처럼 수식이 실제로 표시되는 출력에만 켠다. */
     mathOutput?: boolean;
   },
-): Promise<{ text: string; usage: { input: number; output: number } }> {
+): Promise<LlmTurnResult> {
   const normalizedArgs = {
     ...args,
     system: args.mathOutput
@@ -459,6 +601,9 @@ export async function completeOnce(
           input: response.usage.input_tokens,
           output: response.usage.output_tokens,
         },
+        ...(response.stop_reason
+          ? { stopReason: normalizeStopReason(response.stop_reason) }
+          : {}),
       };
     },
     {
