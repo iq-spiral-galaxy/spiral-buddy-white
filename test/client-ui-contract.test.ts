@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 const [
   html,
   app,
+  baseCss,
   brandCss,
   productCss,
   helixCss,
@@ -16,6 +17,7 @@ const [
   await Promise.all([
   readFile(new URL("../client/index.html", import.meta.url), "utf8"),
   readFile(new URL("../client/app.js", import.meta.url), "utf8"),
+  readFile(new URL("../client/styles.css", import.meta.url), "utf8"),
   readFile(new URL("../client/white-brand.css", import.meta.url), "utf8"),
   readFile(new URL("../client/product-polish.css", import.meta.url), "utf8"),
   readFile(new URL("../client/helix.css", import.meta.url), "utf8"),
@@ -124,6 +126,84 @@ describe("client UI contracts", () => {
     assert.match(html, /id="settings-load-state"[^>]*aria-live="polite"/);
     assert.match(app, /element\.inert = blocked/);
     assert.match(app, /setSettingsLoadState\("loading"\)/);
+  });
+
+  test("desktop updates stay open while downloading and expose real progress", () => {
+    assert.match(html, /id="update-progress-meter"[^>]*role="progressbar"/);
+    assert.match(html, /id="update-progress-bar"/);
+    assert.match(html, /id="update-progress-detail"[^>]*aria-live="polite"/);
+    assert.match(baseCss, /\.update-download-progress/);
+    assert.match(baseCss, /\.update-progress-bar/);
+    assert.match(baseCss, /prefers-reduced-motion: reduce/);
+
+    const updateUi = app.slice(
+      app.indexOf("function formatUpdateBytes"),
+      app.indexOf("async function openSettingsModal"),
+    );
+    assert.match(updateUi, /setUpdateDownloadProgress/);
+    assert.match(updateUi, /window\.spiralUpdate\.onProgress/);
+    assert.match(updateUi, /업데이트를 받는 중… \$\{pct\}%/);
+    assert.match(updateUi, /다운로드 완료 · 앱을 다시 여는 중/);
+    assert.match(updateUi, /다운로드가 끝난 뒤 앱이 자동으로 종료되고 다시 열립니다/);
+    assert.doesNotMatch(updateUi, /alert\(`업데이트 실패/);
+
+    const downloader = electronMain.slice(
+      electronMain.indexOf("async function downloadUpdateAsset"),
+      electronMain.indexOf("// ── Windows"),
+    );
+    assert.match(downloader, /phase: "downloading"/);
+    assert.match(downloader, /phase: "verifying"/);
+    assert.match(downloader, /phase: "downloaded"/);
+    assert.match(downloader, /phase: "error"/);
+    assert.match(downloader, /const partialPath = `\$\{dest\}\.part`/);
+    assert.match(downloader, /fs\.renameSync\(partialPath, dest\)/);
+    assert.match(downloader, /size !== asset\.size/);
+    assert.match(electronMain, /await pipeline\(res, out\)/);
+
+    const macInstaller = electronMain.slice(
+      electronMain.indexOf("async function installUpdateMacOS"),
+      electronMain.indexOf("let _updateInstallPromise"),
+    );
+    const downloadAt = macInstaller.indexOf("await downloadUpdateAsset");
+    const prepareAt = macInstaller.indexOf("await prepareMacUpdate");
+    const markerAt = macInstaller.indexOf("writePendingUpdateMarker");
+    const quitAt = macInstaller.indexOf("app.quit()");
+    assert.ok(
+      downloadAt >= 0 &&
+        prepareAt > downloadAt &&
+        markerAt > prepareAt &&
+        quitAt > markerAt,
+      "macOS must download and fully stage the app before approving restart",
+    );
+    assert.doesNotMatch(macInstaller, /curl\s+-fL/);
+    const macPreflight = electronMain.slice(
+      electronMain.indexOf("async function prepareMacUpdate"),
+      electronMain.indexOf("function buildInstallScript"),
+    );
+    assert.match(macPreflight, /hdiutil[\s\S]*?attach/);
+    assert.match(macPreflight, /await fs\.promises\.cp/);
+    assert.match(macPreflight, /isValidMacAppBundle/);
+    assert.match(macPreflight, /finally[\s\S]*?hdiutil[\s\S]*?detach/);
+    const macSwapScript = electronMain.slice(
+      electronMain.indexOf("function buildInstallScript"),
+      electronMain.indexOf("function pendingUpdateMarkerPath"),
+    );
+    assert.doesNotMatch(macSwapScript, /hdiutil attach/);
+    assert.match(macSwapScript, /restore_and_reopen/);
+    assert.match(macSwapScript, /fail_and_reopen/);
+    assert.match(macSwapScript, /activated app bundle is incomplete/);
+    assert.match(electronMain, /updateShutdownApproved = true/);
+    assert.match(
+      electronMain,
+      /will-prevent-unload[\s\S]*?if \(updateShutdownApproved\)[\s\S]*?event\.preventDefault\(\)/,
+    );
+    assert.match(electronMain, /cleanupSuccessfulUpdateBackup/);
+    assert.match(electronMain, /expectedUpdateAssetName/);
+    assert.match(electronMain, /Spiral\.Buddy\.White\.Setup\.\$\{version\}\.exe/);
+    assert.match(electronMain, /checked\?\.latest !== version/);
+    assert.match(electronMain, /if \(_updateInstallPromise\)/);
+    assert.match(updateUi, /renderActiveUpdateDownload/);
+    assert.doesNotMatch(updateUi, /aria-busy/);
   });
 
   test("sidebar search is self-evident without a repeated heading", () => {
@@ -432,11 +512,11 @@ describe("client UI contracts", () => {
       productCss,
       /body\.light-mode[\s\S]*?:is\([\s\S]*?#input,[\s\S]*?textarea\.lookup-direct-input,[\s\S]*?\.lookup-direct-context,[\s\S]*?\.lookup-question-text[\s\S]*?\)::placeholder \{[\s\S]*?background: transparent !important;[\s\S]*?background-color: transparent !important;/,
     );
-    assert.match(html, /white-brand\.css\?v=0\.6\.15/);
-    assert.match(html, /helix\.css\?v=0\.6\.15/);
-    assert.match(html, /product-polish\.css\?v=0\.6\.15/);
-    assert.match(html, /verification\.css\?v=0\.6\.15/);
-    assert.match(html, /app\.js\?v=0\.6\.15/);
+    assert.match(html, /white-brand\.css\?v=0\.7\.0/);
+    assert.match(html, /helix\.css\?v=0\.7\.0/);
+    assert.match(html, /product-polish\.css\?v=0\.7\.0/);
+    assert.match(html, /verification\.css\?v=0\.7\.0/);
+    assert.match(html, /app\.js\?v=0\.7\.0/);
   });
 
   test("the 820px mobile shell keeps the main column visible and hides inert resizers", () => {
@@ -541,6 +621,36 @@ describe("client UI contracts", () => {
       brandCss,
       /\.message\.user \.content \{[\s\S]*?width: fit-content !important;[\s\S]*?justify-self: end;/,
     );
+    assert.match(
+      brandCss,
+      /\.message\.user \.content \{[\s\S]*?white-space: normal;/,
+    );
+  });
+
+  test("display titles remove redundant order prefixes without hiding real numeric names", () => {
+    const helperSource = app.slice(
+      app.indexOf("function stripDisplayOrderPrefix"),
+      app.indexOf("function displayRepoName"),
+    );
+    const stripDisplayOrderPrefix = Function(
+      `${helperSource}; return stripDisplayOrderPrefix;`,
+    )();
+    assert.equal(stripDisplayOrderPrefix("01 Object Model"), "Object Model");
+    assert.equal(stripDisplayOrderPrefix("02. References"), "References");
+    assert.equal(stripDisplayOrderPrefix("10-remote-protocol"), "remote-protocol");
+    assert.equal(stripDisplayOrderPrefix("Chapter01 - Intro"), "Intro");
+    assert.equal(stripDisplayOrderPrefix("Ch. 2: Deep Dive"), "Deep Dive");
+    assert.equal(stripDisplayOrderPrefix("12 Factor App"), "12 Factor App");
+    assert.equal(stripDisplayOrderPrefix("3 Body Problem"), "3 Body Problem");
+    assert.equal(stripDisplayOrderPrefix("1984 Orwell"), "1984 Orwell");
+
+    const searchRenderer = app.slice(
+      app.indexOf("function renderSearchResults"),
+      app.indexOf("function renderSearchItem"),
+    );
+    assert.match(searchRenderer, /label: displayRepoName\(r\.name\)/);
+    assert.match(searchRenderer, /displayRepoName\(c\.roadmapName\)/);
+    assert.match(searchRenderer, /displayRepoName\(n\.roadmapName\)/);
   });
 
   test("all message surfaces share safe progressive Markdown and raw-source copy", () => {
@@ -594,6 +704,102 @@ describe("client UI contracts", () => {
     assert.match(previewCard, /_renderAiCardMarkdown\(card\.summary\)/);
     assert.doesNotMatch(previewCard, /escapeHtml\(card\.summary\)/);
   });
+
+  test("concept vault saves completed lookup sources and searches locally", () => {
+    assert.match(
+      html,
+      /id="concept-vault-open"[^>]*aria-haspopup="dialog"[^>]*aria-controls="concept-vault-modal"/,
+    );
+    assert.match(html, /id="concept-vault-count"[^>]*aria-live="polite"/);
+    assert.match(
+      html,
+      /class="modal concept-vault-modal"[^>]*role="dialog"[^>]*aria-modal="true"/,
+    );
+    assert.match(
+      html,
+      /id="concept-vault-search"[^>]*aria-controls="concept-vault-results"/,
+    );
+    assert.doesNotMatch(html, /concept-vault-semantic-search|AI 의미 검색/);
+    assert.match(html, /id="concept-vault-status"[^>]*role="status"[^>]*aria-live="polite"/);
+
+    const lookupStream = app.slice(
+      app.indexOf("async function streamMarkdownInto"),
+      app.indexOf("async function runLookup"),
+    );
+    assert.match(lookupStream, /let rawSource = ""/);
+    assert.match(lookupStream, /rawSource = renderer\.finish\(\)/);
+    assert.match(lookupStream, /return rawSource/);
+
+    const lookupRunner = app.slice(
+      app.indexOf("async function runLookup"),
+      app.indexOf("async function requestConceptApi"),
+    );
+    assert.match(
+      lookupRunner,
+      /data-act="save"[^>]*aria-label="답변 생성 후 개념 보관함에 저장" disabled/,
+    );
+    assert.match(lookupRunner, /const rawSource = await streamMarkdownInto/);
+    assert.match(lookupRunner, /if \(rawSource\?\.trim\(\) && saveButton\)/);
+    assert.match(
+      lookupRunner,
+      /const conceptTerm = inferConceptTerm\(query, rawSource\);[\s\S]*?_lookupConceptDrafts\.set\(card, \{[\s\S]*?term: conceptTerm[\s\S]*?content: rawSource/,
+    );
+    assert.match(
+      lookupRunner,
+      /depth: Number\.isInteger\(state\.session\?\.depth\)[\s\S]*?state\.session\.depth[\s\S]*?: undefined/,
+    );
+    assert.match(lookupRunner, /saveButton\.disabled = false/);
+    assert.doesNotMatch(lookupRunner, /depth:\s*depth[,\n]/);
+    assert.doesNotMatch(
+      lookupRunner,
+      /_lookupConceptDrafts\.set\(card, \{[\s\S]*?depth:\s*["'`]\$?\{?/,
+    );
+
+    const vault = app.slice(
+      app.indexOf("async function requestConceptApi"),
+      app.indexOf("async function runChapterContext"),
+    );
+    assert.match(vault, /requestConceptApi\("\/api\/concepts", \{/);
+    assert.match(vault, /requestConceptApi\("\/api\/concepts\/count"\)/);
+    assert.match(vault, /requestConceptApi\("\/api\/concepts\/search"/);
+    assert.doesNotMatch(vault, /semantic|model:\s*state\.selectedModel|window\.confirm\(/i);
+    assert.doesNotMatch(app, /concept-semantic-consent|AI 의미 검색/i);
+    assert.match(vault, /method: "POST"/);
+    assert.match(vault, /method: "PATCH"/);
+    assert.match(vault, /method: "DELETE"/);
+    assert.match(vault, /new AbortController\(\)/);
+    assert.match(vault, /seq !== _conceptVaultState\.requestSeq/);
+    assert.match(vault, /}, 280\)/);
+    assert.match(vault, /querySelectorAll\("\.concept-item\.expanded"\)/);
+    assert.match(
+      vault,
+      /`\/api\/concepts\/\$\{encodeURIComponent\(key\)\}`/,
+    );
+    assert.match(vault, /safeMarkedInto\(target, detail\.content/);
+    assert.match(vault, /concept-detail-state--error/);
+    assert.match(vault, /data-concept-action="retry-detail"/);
+    assert.match(vault, /element\.inert = true/);
+    assert.match(vault, /setConceptVaultBackgroundInert\(false\)/);
+    assert.match(vault, /_conceptVaultState\.editingId = id/);
+    assert.match(vault, /deleteConfirmId !== id/);
+    assert.match(vault, /event\.key === "Escape"/);
+    assert.match(vault, /target\?\.isConnected[\s\S]*?target\.focus\(\)/);
+    assert.match(vault, /"최신 답변으로 업데이트"/);
+    assert.match(vault, /최신 답변으로 업데이트했어요/);
+
+    const vaultCss = baseCss.slice(
+      baseCss.indexOf("/* \u2500\u2500\u2500 Concept vault"),
+      baseCss.indexOf(".lookup-card-body {", baseCss.indexOf("/* \u2500\u2500\u2500 Concept vault")),
+    );
+    assert.match(vaultCss, /\.lookup-vault-btn/);
+    assert.match(vaultCss, /\.modal\.concept-vault-modal/);
+    assert.match(vaultCss, /\.concept-item-edit/);
+    assert.doesNotMatch(vaultCss, /\.concept-vault-semantic-search/);
+    assert.match(vaultCss, /\.concept-detail-state/);
+    assert.match(vaultCss, /\.concept-item-markdown \.katex-display/);
+    assert.doesNotMatch(vaultCss, /#[0-9a-f]{3,8}\b|rgba?\(/i);
+  });
+
 
   test("theme migration and labels stay consistent without decorative emoji", () => {
     assert.match(app, /spiral-buddy:theme:v3/);

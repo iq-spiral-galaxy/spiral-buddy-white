@@ -3120,7 +3120,7 @@ body:is(.light-mode, .dark-mode) .message.user .content {
   min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
+  white-space: normal;
 }
 
 /* One compact spinner can be reused inside buttons, status rows and cards. */
@@ -4328,7 +4328,7 @@ body:is(.light-mode, .dark-mode) .message.user .content {
   justify-self: end;
   margin-left: auto !important;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
+  white-space: normal;
 }
 
 body:is(.light-mode, .dark-mode) .message.user:hover {

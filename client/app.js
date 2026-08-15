@@ -8,6 +8,7 @@ import {
   truncate,
   _relTime,
   cleanUiLabel,
+  inferConceptTerm,
   fetchJson,
   FetchTimeoutError,
 } from "./util.js";
@@ -219,6 +220,15 @@ function cacheEls() {
   els.lookupDirectCtxToggle = $("lookup-direct-ctx-toggle");
   els.lookupDirectDepth = $("lookup-direct-depth");
   els.lookupDirectResizer = $("lookup-direct-resizer");
+  // 개념 보관함
+  els.conceptVaultOpen = $("concept-vault-open");
+  els.conceptVaultCount = $("concept-vault-count");
+  els.conceptVaultModal = $("concept-vault-modal");
+  els.conceptVaultClose = $("concept-vault-close");
+  els.conceptVaultSearch = $("concept-vault-search");
+  els.conceptVaultSearchClear = $("concept-vault-search-clear");
+  els.conceptVaultStatus = $("concept-vault-status");
+  els.conceptVaultResults = $("concept-vault-results");
   // Composer 높이 조절
   els.composerResizer = $("composer-resizer");
 }
@@ -1445,15 +1455,28 @@ function renderMeta() {
 //   "spring-core-deep-dive" → "Spring Core"
 //   1) "-deep-dive" 접미사 제거  2) 하이픈 → 공백
 //   3) v0.5.91 — 모든 단어의 첫 글자 대문자 (Title Case)
+function stripDisplayOrderPrefix(value) {
+  const original = String(value ?? "").trim();
+  const stripped = original
+    .replace(/^\s*(?:chapter|챕터|ch)\.?\s*\d+\s*[-_.:)\]·–—]*\s*/i, "")
+    .replace(
+      /^\s*(?:(?:0\d{1,2})(?:\s*[-_.:)\]·–—]\s*|\s+)|(?:[1-9]\d?)\s*[-_.:)\]·–—]\s*)/,
+      "",
+    )
+    .trim();
+  return stripped || original;
+}
+
 function displayRepoName(name) {
   let s = cleanUiLabel(name);
   s = s.replace(/-deep-dive$/i, "");
+  // 구분 기호를 공백으로 바꾸기 전에 순번을 걷어내야 `10-remote`와
+  // 실제 제목 `12 Factor App`을 안전하게 구분할 수 있다.
+  s = stripDisplayOrderPrefix(s);
   s = s.replace(/-/g, " ").trim();
   // 선두 챕터 번호/접두사 제거 — 사이드바엔 이미 인덱스(1.)가 보이므로 중복.
   //   "ch1 the terrain" → "the terrain", "05 fixtures" → "fixtures".
   //   (repo명 "mind body map distilled"·"1984 orwell"은 안 떼짐.)
-  const stripped = s.replace(/^(?:ch(?:apter)?\.?\s*\d+|\d{1,2})\s+/i, "").trim();
-  if (stripped) s = stripped;
   return s.replace(/(^|\s)(\S)/g, (_, sp, ch) => sp + ch.toUpperCase());
 }
 
@@ -3307,7 +3330,105 @@ async function initSettings() {
   }
 }
 
-// v0.5.32+ — 업데이트 banner. v0.5.36: 실패 명시 + manual 진입점 항상 노출.
+let _activeUpdateDownload = null;
+
+function formatUpdateBytes(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
+
+function setUpdateDownloadProgress(progress = {}) {
+  const root = document.getElementById("update-download-progress");
+  const meter = document.getElementById("update-progress-meter");
+  const bar = document.getElementById("update-progress-bar");
+  const detail = document.getElementById("update-progress-detail");
+  if (!root || !meter || !bar || !detail) return "업데이트를 받는 중…";
+
+  const phase = progress?.phase ?? "downloading";
+  const numericPct = Number(progress?.pct);
+  const hasKnownTotal = Number(progress?.total) > 0;
+  const hasPct = Number.isFinite(numericPct) && hasKnownTotal;
+  const pct = hasPct ? Math.max(0, Math.min(100, Math.round(numericPct))) : null;
+
+  root.classList.remove("hidden", "indeterminate");
+  root.setAttribute("aria-hidden", "false");
+  if (phase === "error") {
+    bar.style.width = "0%";
+    meter.removeAttribute("aria-valuenow");
+  } else if (phase === "downloading" && pct === null) {
+    root.classList.add("indeterminate");
+    bar.style.width = "";
+    meter.removeAttribute("aria-valuenow");
+  } else {
+    const completed = phase === "downloading" ? (pct ?? 0) : 100;
+    bar.style.width = `${completed}%`;
+    meter.setAttribute("aria-valuenow", String(completed));
+  }
+
+  let label = "업데이트를 받는 중…";
+  if (phase === "verifying") label = "다운로드 확인 중…";
+  if (phase === "downloaded") label = "다운로드 완료 · 설치 준비 중…";
+  if (phase === "installing") label = "다운로드 완료 · 앱을 다시 여는 중…";
+  if (phase === "error") label = "업데이트를 받지 못했어요";
+
+  if (phase === "downloading" && pct !== null) {
+    label = `업데이트를 받는 중… ${pct}%`;
+    const received = formatUpdateBytes(progress?.received);
+    const total = formatUpdateBytes(progress?.total);
+    detail.textContent = received && total ? `${received} / ${total}` : `${pct}%`;
+  } else if (phase === "downloading") {
+    detail.textContent = formatUpdateBytes(progress?.received) || "연결 중…";
+  } else if (phase === "verifying") {
+    detail.textContent = "확인 중";
+  } else if (phase === "error") {
+    detail.textContent = "실패";
+  } else {
+    detail.textContent = "100%";
+  }
+  meter.setAttribute("aria-valuetext", label);
+  return label;
+}
+
+function resetUpdateDownloadProgress() {
+  const root = document.getElementById("update-download-progress");
+  const meter = document.getElementById("update-progress-meter");
+  const bar = document.getElementById("update-progress-bar");
+  const detail = document.getElementById("update-progress-detail");
+  root?.classList.add("hidden");
+  root?.classList.remove("indeterminate");
+  root?.setAttribute("aria-hidden", "true");
+  meter?.removeAttribute("aria-valuenow");
+  meter?.removeAttribute("aria-valuetext");
+  if (bar) bar.style.width = "0%";
+  if (detail) detail.textContent = "";
+}
+
+function renderActiveUpdateDownload({ banner, text, installBtn, recheckBtn }) {
+  const active = _activeUpdateDownload;
+  if (!active) return false;
+  banner.classList.remove("hidden", "errored");
+  banner.classList.add("has-update", "is-updating");
+  installBtn.classList.remove("hidden");
+  installBtn.disabled = true;
+  if (recheckBtn) recheckBtn.disabled = true;
+  const label = setUpdateDownloadProgress(active.progress);
+  text.textContent = `v${active.version} · ${label}`;
+  const pct = Number(active.progress?.pct);
+  const hasPct =
+    active.progress?.pct != null &&
+    Number.isFinite(pct) &&
+    (active.progress?.phase !== "downloading" || Number(active.progress?.total) > 0);
+  installBtn.textContent = active.progress?.phase === "installing"
+    ? "다시 여는 중…"
+    : hasPct
+      ? `${Math.max(0, Math.min(100, Math.round(pct)))}%`
+      : "받는 중…";
+  return true;
+}
+
+// v0.5.32+ — 업데이트 banner. 다운로드를 끝낸 뒤에만 앱을 재시작한다.
 async function refreshUpdateBanner({ force = false } = {}) {
   const banner = document.getElementById("update-banner");
   const text = document.getElementById("update-banner-text");
@@ -3320,11 +3441,6 @@ async function refreshUpdateBanner({ force = false } = {}) {
     return;
   }
   banner.classList.remove("hidden");
-  banner.classList.remove("has-update", "errored");
-  text.textContent = "업데이트 확인 중…";
-  installBtn.classList.add("hidden");
-  installBtn.disabled = true;
-  if (recheckBtn) recheckBtn.disabled = true;
 
   // releases link 기본값
   const RELEASES_URL =
@@ -3336,6 +3452,17 @@ async function refreshUpdateBanner({ force = false } = {}) {
       window.spiralUpdate.openExternal?.(RELEASES_URL);
     };
   }
+
+  if (renderActiveUpdateDownload({ banner, text, installBtn, recheckBtn })) {
+    return;
+  }
+
+  banner.classList.remove("has-update", "errored", "is-updating");
+  resetUpdateDownloadProgress();
+  text.textContent = "업데이트 확인 중…";
+  installBtn.classList.add("hidden");
+  installBtn.disabled = true;
+  if (recheckBtn) recheckBtn.disabled = true;
 
   let info;
   try {
@@ -3369,17 +3496,23 @@ async function refreshUpdateBanner({ force = false } = {}) {
     installBtn.onclick = async () => {
       if (
         !confirm(
-          `v${info.latest}으로 업데이트 받을게요.\n앱이 자동으로 종료 후 다시 열립니다. 진행할까요?`,
+          `v${info.latest}으로 업데이트 받을게요.\n다운로드가 끝난 뒤 앱이 자동으로 종료되고 다시 열립니다. 진행할까요?`,
         )
       )
         return;
+      banner.classList.add("is-updating");
+      banner.classList.remove("errored");
       installBtn.disabled = true;
       installBtn.textContent = "받는 중…";
-      // v0.5.75 — Windows는 다운로드가 앱 안에서 진행됨 → 진행률 표시
+      if (recheckBtn) recheckBtn.disabled = true;
+      _activeUpdateDownload = {
+        version: info.latest,
+        progress: { phase: "downloading" },
+      };
+      renderActiveUpdateDownload({ banner, text, installBtn, recheckBtn });
       const offProgress = window.spiralUpdate.onProgress?.((p) => {
-        if (p?.pct != null) {
-          installBtn.textContent = `다운로드 ${p.pct}%`;
-        }
+        _activeUpdateDownload = { version: info.latest, progress: p ?? {} };
+        renderActiveUpdateDownload({ banner, text, installBtn, recheckBtn });
       });
       try {
         const result = await window.spiralUpdate.install({
@@ -3388,22 +3521,40 @@ async function refreshUpdateBanner({ force = false } = {}) {
         // v0.5.75 — 실패가 명시적 반환으로 옴 (앱이 안 꺼졌다는 뜻).
         // 기존엔 실패해도 앱이 꺼져서 사용자가 아무것도 못 봤음.
         if (result && result.ok === false) {
+          _activeUpdateDownload = null;
+          banner.classList.remove("is-updating");
+          banner.classList.add("errored");
           installBtn.disabled = false;
-          installBtn.textContent = "받기";
-          alert(
-            `업데이트 실패: ${result.reason ?? "알 수 없는 오류"}\n\n` +
-              `잠시 후 다시 시도하거나, 우측 Releases 링크에서 수동으로 받아주세요.`,
-          );
+          installBtn.textContent = "다시 시도";
+          resetUpdateDownloadProgress();
+          text.textContent = `업데이트 실패: ${result.reason ?? "알 수 없는 오류"} · 다시 시도하거나 Releases에서 직접 받아주세요.`;
+          if (recheckBtn) recheckBtn.disabled = false;
         } else if (result?.mode === "browser") {
           // Linux 등 브라우저에서 직접 받는 플랫폼은 앱이 종료되지 않음.
+          _activeUpdateDownload = null;
+          banner.classList.remove("is-updating");
           installBtn.disabled = false;
           installBtn.textContent = "받기";
+          resetUpdateDownloadProgress();
+          text.textContent = "Releases 페이지를 열었어요. 운영체제에 맞는 파일을 받아주세요.";
+          if (recheckBtn) recheckBtn.disabled = false;
+        } else {
+          _activeUpdateDownload = {
+            version: info.latest,
+            progress: { phase: "installing", pct: 100, total: 1 },
+          };
+          renderActiveUpdateDownload({ banner, text, installBtn, recheckBtn });
         }
         // ok=true면 곧 앱이 종료되고 설치가 진행됨
       } catch (err) {
+        _activeUpdateDownload = null;
+        banner.classList.remove("is-updating");
+        banner.classList.add("errored");
         installBtn.disabled = false;
-        installBtn.textContent = "받기";
-        alert(`업데이트 실패: ${err?.message ?? err}`);
+        installBtn.textContent = "다시 시도";
+        resetUpdateDownloadProgress();
+        text.textContent = `업데이트 실패: ${err?.message ?? err} · 다시 시도하거나 Releases에서 직접 받아주세요.`;
+        if (recheckBtn) recheckBtn.disabled = false;
       } finally {
         offProgress?.();
       }
@@ -4355,6 +4506,28 @@ const _lookupState = {
   sidebarAutoCollapsed: false,
 };
 
+const _conceptVaultState = {
+  open: false,
+  concepts: [],
+  query: "",
+  mode: "all",
+  libraryTotal: 0,
+  resultTotal: 0,
+  expanded: new Set(),
+  editingId: null,
+  deleteConfirmId: null,
+  debounceTimer: null,
+  inflight: null,
+  requestSeq: 0,
+  lastFocus: null,
+  details: new Map(),
+  detailErrors: new Map(),
+  detailInflight: new Map(),
+  backgroundState: new Map(),
+};
+
+const _lookupConceptDrafts = new WeakMap();
+
 function initLookup() {
   if (!els.messages || !els.lookupToolbar || !els.lookupPanel) return;
 
@@ -4432,6 +4605,8 @@ function initLookup() {
   initLookupQuestionPopover();
   // 직접 입력 form
   initLookupDirectForm();
+  // 완료된 lookup 답변을 다시 찾을 수 있게 보관하는 개념 보관함
+  initConceptVault();
 
   // topbar 토글 버튼 (다시 열기 진입점)
   document.getElementById("lookup-toggle")?.addEventListener("click", () => {
@@ -4986,6 +5161,9 @@ const SPIRAL_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentC
 const COPY_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
 // 복사 성공 후 잠깐 보여줄 체크
 const CHECK_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+// lookup 답변을 개념 보관함에 저장하는 북마크
+const BOOKMARK_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/></svg>`;
+const BOOKMARK_SAVED_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/></svg>`;
 // 카드 닫기 X
 const X_SVG_INLINE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
 
@@ -5079,6 +5257,8 @@ function createLookupCard({ cardClass, fingerprintAttr, fingerprint, innerHtml }
       if (act === "close") {
         card.remove();
         _lookupState.cardCount--;
+      } else if (act === "save") {
+        await saveLookupConcept(card, btn);
       } else if (act === "copy") {
         const source = bodyEl
           ? getMarkdownSource(bodyEl) || bodyEl.innerText
@@ -5119,6 +5299,7 @@ function createLookupCard({ cardClass, fingerprintAttr, fingerprint, innerHtml }
 async function streamMarkdownInto({ url, body, bodyEl, group }) {
   const handle = createStreamHandle(group);
   let renderer = null;
+  let rawSource = "";
   try {
     const res = await fetch(url, {
       method: "POST",
@@ -5128,23 +5309,25 @@ async function streamMarkdownInto({ url, body, bodyEl, group }) {
     });
     if (!res.ok || !res.body) {
       bodyEl.textContent = `(요청 실패: ${res.status})`;
-      return;
+      return "";
     }
     renderer = createProgressiveMarkdownRenderer(bodyEl);
     await pumpStream(res.body.getReader(), handle, (chunk) => {
       renderer.append(chunk);
     });
-    renderer.finish();
+    rawSource = renderer.finish();
     renderer = null;
+    return rawSource;
   } catch (err) {
     renderer?.finish();
     renderer = null;
     // 패널 닫기/세션 전환에 의한 중단 — 카드도 곧 사라지므로 조용히
-    if (isIntentionalAbort(err, handle)) return;
+    if (isIntentionalAbort(err, handle)) return "";
     if (!bodyEl.textContent.trim()) {
       bodyEl.textContent = `(에러: ${err.message})`;
     }
     setStatus(`보조 노트를 불러오지 못했어요: ${err.message}`, "error");
+    return "";
   } finally {
     renderer?.cancel();
     finishStreamHandle(handle);
@@ -5178,7 +5361,7 @@ async function runLookup(query, depth, opts = {}) {
   const questionLine = userQuestion
     ? `<div class="lookup-card-userq" title="${escapeAttr(userQuestion)}">Q. ${escapeHtml(userQuestion)}</div>`
     : "";
-  const { bodyEl } = createLookupCard({
+  const { card, bodyEl } = createLookupCard({
     cardClass: "lookup-card",
     fingerprintAttr: "lookupKey",
     fingerprint,
@@ -5191,6 +5374,7 @@ async function runLookup(query, depth, opts = {}) {
       <span class="lookup-card-query" title="${escapeAttr(query)}">${escapeHtml(query)}</span>
       <span class="lookup-card-fold" aria-hidden="true">▾</span>
       <div class="lookup-card-actions">
+        <button class="lookup-card-act lookup-card-save" data-act="save" type="button" title="답변이 끝나면 보관할 수 있어요" aria-label="답변 생성 후 개념 보관함에 저장" disabled>${BOOKMARK_SVG_INLINE}</button>
         <button class="lookup-card-act" data-act="copy" type="button" title="복사" aria-label="복사">${COPY_SVG_INLINE}</button>
         <button class="lookup-card-act" data-act="close" type="button" title="삭제" aria-label="삭제">${X_SVG_INLINE}</button>
       </div>
@@ -5210,7 +5394,7 @@ async function runLookup(query, depth, opts = {}) {
     }
   }
 
-  await streamMarkdownInto({
+  const rawSource = await streamMarkdownInto({
     url: "/api/lookup",
     body: {
       query,
@@ -5223,6 +5407,25 @@ async function runLookup(query, depth, opts = {}) {
     bodyEl,
     group: "lookup",
   });
+  const saveButton = card.querySelector('[data-act="save"]');
+  if (rawSource?.trim() && saveButton) {
+    const conceptTerm = inferConceptTerm(query, rawSource);
+    _lookupConceptDrafts.set(card, {
+      term: conceptTerm,
+      content: rawSource,
+      userQuestion,
+      // API의 depth는 lookup 응답 길이가 아니라 현재 학습 나선의 정수 depth다.
+      depth: Number.isInteger(state.session?.depth)
+        ? state.session.depth
+        : undefined,
+      roadmapId: state.activeRoadmapId || undefined,
+      chapterId: state.session?.chapterId || undefined,
+      chapterTitle: state.session?.chapterTitle || undefined,
+    });
+    saveButton.disabled = false;
+    saveButton.title = "개념 보관함에 저장";
+    saveButton.setAttribute("aria-label", `“${conceptTerm}” 개념 보관함에 저장`);
+  }
 }
 
 // ──────────────────────────────────────────────────────────
@@ -5230,6 +5433,679 @@ async function runLookup(query, depth, opts = {}) {
 //   Buddy 메시지가 챕터의 어느 부분을 가리키는지 (인용+요약) 형식으로
 //   Look-up 패널에 카드로 표시. 매 메시지 문맥 버튼 또는 드래그 toolbar에서 트리거.
 // ──────────────────────────────────────────────────────────
+
+async function requestConceptApi(url, { method = "GET", body, signal } = {}) {
+  const response = await fetch(url, {
+    method,
+    headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
+  });
+  if (!response.ok) {
+    let detail = "";
+    try {
+      const payload = await response.json();
+      detail = String(payload?.message ?? payload?.error ?? "").trim();
+    } catch {}
+    throw new Error(detail || `요청에 실패했어요 (${response.status})`);
+  }
+  if (response.status === 204) return {};
+  const text = await response.text();
+  return text ? JSON.parse(text) : {};
+}
+
+function normalizeConceptAliases(value) {
+  const source = Array.isArray(value)
+    ? value
+    : String(value ?? "").split(/[,;\n]/);
+  return [...new Set(source.map((alias) => String(alias).trim()).filter(Boolean))];
+}
+
+function conceptSummary(concept) {
+  const explicit = String(concept?.summary ?? "").trim();
+  if (explicit) return explicit;
+  return String(concept?.content ?? "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/[#>*_~\[\]()!-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+}
+
+function setConceptVaultCount(total) {
+  const count = Math.max(0, Number(total) || 0);
+  _conceptVaultState.libraryTotal = count;
+  if (els.conceptVaultCount) els.conceptVaultCount.textContent = String(count);
+  els.conceptVaultOpen?.setAttribute(
+    "aria-label",
+    `개념 보관함 열기, ${count}개`,
+  );
+}
+
+function setConceptVaultStatus(message) {
+  if (els.conceptVaultStatus) els.conceptVaultStatus.textContent = message;
+}
+
+async function refreshConceptVaultCount() {
+  try {
+    const data = await requestConceptApi("/api/concepts/count");
+    setConceptVaultCount(data?.total);
+  } catch {
+    // 보관함이 닫혀 있을 때의 badge 실패는 학습 흐름을 막지 않는다.
+  }
+}
+
+function initConceptVault() {
+  if (!els.conceptVaultOpen || !els.conceptVaultModal) return;
+
+  els.conceptVaultOpen.addEventListener("click", openConceptVaultModal);
+  els.conceptVaultClose?.addEventListener("click", closeConceptVaultModal);
+  els.conceptVaultModal.addEventListener("click", (event) => {
+    if (event.target === els.conceptVaultModal) closeConceptVaultModal();
+  });
+  els.conceptVaultSearch?.addEventListener("input", () => {
+    const query = els.conceptVaultSearch.value;
+    els.conceptVaultSearchClear?.classList.toggle("hidden", !query);
+    scheduleConceptVaultSearch(query);
+  });
+  els.conceptVaultSearch?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      clearTimeout(_conceptVaultState.debounceTimer);
+      void loadConceptVault(els.conceptVaultSearch.value);
+      return;
+    }
+    if (event.key !== "ArrowDown") return;
+    const first = els.conceptVaultResults?.querySelector(
+      '[data-concept-action="toggle"]',
+    );
+    if (first) {
+      event.preventDefault();
+      first.focus();
+    }
+  });
+  els.conceptVaultSearchClear?.addEventListener("click", () => {
+    els.conceptVaultSearch.value = "";
+    els.conceptVaultSearchClear.classList.add("hidden");
+    scheduleConceptVaultSearch("");
+    els.conceptVaultSearch.focus();
+  });
+  els.conceptVaultResults?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-concept-action]");
+    if (!button) return;
+    void handleConceptVaultAction(button);
+  });
+  els.conceptVaultResults?.addEventListener("keydown", (event) => {
+    const toggle = event.target.closest('[data-concept-action="toggle"]');
+    if (!toggle) return;
+    const keys = ["ArrowDown", "ArrowUp", "Home", "End"];
+    if (!keys.includes(event.key)) return;
+    const toggles = Array.from(
+      els.conceptVaultResults.querySelectorAll('[data-concept-action="toggle"]'),
+    );
+    const index = toggles.indexOf(toggle);
+    if (index < 0 || toggles.length === 0) return;
+    event.preventDefault();
+    const nextIndex =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? toggles.length - 1
+          : (index + (event.key === "ArrowDown" ? 1 : -1) + toggles.length) %
+            toggles.length;
+    toggles[nextIndex]?.focus();
+  });
+  document.addEventListener(
+    "keydown",
+    (event) => {
+      if (!_conceptVaultState.open) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        if (_conceptVaultState.editingId !== null) {
+          const id = _conceptVaultState.editingId;
+          _conceptVaultState.editingId = null;
+          renderConceptVaultResults();
+          focusConceptAction(id, "edit");
+        } else {
+          closeConceptVaultModal();
+        }
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        els.conceptVaultModal.querySelectorAll(
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.offsetParent !== null);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    },
+    true,
+  );
+
+  void refreshConceptVaultCount();
+}
+
+function openConceptVaultModal() {
+  if (!els.conceptVaultModal) return;
+  _conceptVaultState.lastFocus = document.activeElement;
+  _conceptVaultState.open = true;
+  _conceptVaultState.query = "";
+  _conceptVaultState.editingId = null;
+  _conceptVaultState.deleteConfirmId = null;
+  els.conceptVaultSearch.value = "";
+  els.conceptVaultSearchClear?.classList.add("hidden");
+  setConceptVaultBackgroundInert(true);
+  els.conceptVaultModal.inert = false;
+  els.conceptVaultModal.classList.remove("hidden");
+  els.conceptVaultModal.setAttribute("aria-hidden", "false");
+  void loadConceptVault("");
+  window.setTimeout(() => els.conceptVaultSearch?.focus(), 30);
+}
+
+function closeConceptVaultModal() {
+  if (!els.conceptVaultModal) return;
+  clearTimeout(_conceptVaultState.debounceTimer);
+  _conceptVaultState.inflight?.abort();
+  _conceptVaultState.inflight = null;
+  abortConceptDetailRequests();
+  _conceptVaultState.requestSeq++;
+  _conceptVaultState.open = false;
+  _conceptVaultState.editingId = null;
+  _conceptVaultState.deleteConfirmId = null;
+  els.conceptVaultModal.classList.add("hidden");
+  els.conceptVaultModal.setAttribute("aria-hidden", "true");
+  setConceptVaultBackgroundInert(false);
+  const target = _conceptVaultState.lastFocus;
+  if (target?.isConnected && typeof target.focus === "function") target.focus();
+}
+
+function setConceptVaultBackgroundInert(inert) {
+  if (!_conceptVaultState.backgroundState) return;
+  if (inert) {
+    _conceptVaultState.backgroundState.clear();
+    Array.from(document.body.children).forEach((element) => {
+      if (!(element instanceof HTMLElement) || element === els.conceptVaultModal) {
+        return;
+      }
+      _conceptVaultState.backgroundState.set(element, {
+        inert: Boolean(element.inert),
+        ariaHidden: element.getAttribute("aria-hidden"),
+      });
+      element.inert = true;
+      element.setAttribute("aria-hidden", "true");
+    });
+    return;
+  }
+  _conceptVaultState.backgroundState.forEach((previous, element) => {
+    if (!element.isConnected) return;
+    element.inert = previous.inert;
+    if (previous.ariaHidden === null) element.removeAttribute("aria-hidden");
+    else element.setAttribute("aria-hidden", previous.ariaHidden);
+  });
+  _conceptVaultState.backgroundState.clear();
+}
+
+function scheduleConceptVaultSearch(query) {
+  clearTimeout(_conceptVaultState.debounceTimer);
+  _conceptVaultState.inflight?.abort();
+  abortConceptDetailRequests();
+  _conceptVaultState.requestSeq++;
+  _conceptVaultState.query = String(query ?? "").trim();
+  _conceptVaultState.editingId = null;
+  _conceptVaultState.deleteConfirmId = null;
+  renderConceptVaultState("loading", "개념을 찾는 중…");
+  _conceptVaultState.debounceTimer = window.setTimeout(() => {
+    void loadConceptVault(_conceptVaultState.query);
+  }, 280);
+}
+
+async function loadConceptVault(query = "") {
+  const normalizedQuery = String(query ?? "").trim();
+  _conceptVaultState.inflight?.abort();
+  const controller = new AbortController();
+  const seq = ++_conceptVaultState.requestSeq;
+  _conceptVaultState.inflight = controller;
+  _conceptVaultState.query = normalizedQuery;
+  renderConceptVaultState(
+    "loading",
+    normalizedQuery
+      ? "보관함 안에서 찾는 중…"
+      : "보관한 개념을 불러오는 중…",
+  );
+  try {
+    const data = normalizedQuery
+      ? await requestConceptApi("/api/concepts/search", {
+          method: "POST",
+          body: {
+            query: normalizedQuery,
+          },
+          signal: controller.signal,
+        })
+      : await requestConceptApi("/api/concepts", {
+          signal: controller.signal,
+        });
+    if (seq !== _conceptVaultState.requestSeq || !_conceptVaultState.open) return;
+    _conceptVaultState.concepts = Array.isArray(data?.concepts)
+      ? data.concepts
+      : [];
+    _conceptVaultState.resultTotal = Number(
+      data?.total ?? _conceptVaultState.concepts.length,
+    );
+    _conceptVaultState.mode = normalizedQuery ? data?.mode ?? "local" : "all";
+    renderConceptVaultResults();
+  } catch (error) {
+    if (controller.signal.aborted || seq !== _conceptVaultState.requestSeq) return;
+    renderConceptVaultState(
+      "error",
+      `개념을 불러오지 못했어요. ${error.message}`,
+    );
+  } finally {
+    if (_conceptVaultState.inflight === controller) {
+      _conceptVaultState.inflight = null;
+    }
+  }
+}
+
+function renderConceptVaultState(kind, message) {
+  if (!els.conceptVaultResults) return;
+  const loading = kind === "loading";
+  els.conceptVaultResults.setAttribute("aria-busy", String(loading));
+  setConceptVaultStatus(message);
+  const icon =
+    kind === "loading"
+      ? '<span class="inline-spinner" aria-hidden="true"></span>'
+      : BOOKMARK_SVG_INLINE;
+  els.conceptVaultResults.innerHTML = `
+    <div class="concept-vault-state concept-vault-state--${escapeAttr(kind)}">
+      <span class="concept-vault-state-icon" aria-hidden="true">${icon}</span>
+      <p>${escapeHtml(message)}</p>
+      ${kind === "error" ? '<button type="button" data-concept-action="retry">다시 시도</button>' : ""}
+    </div>
+  `;
+}
+
+function conceptById(id) {
+  return _conceptVaultState.concepts.find(
+    (concept) => String(concept?.id) === String(id),
+  );
+}
+
+function abortConceptDetailRequests() {
+  _conceptVaultState.detailInflight.forEach((controller) => controller.abort());
+  _conceptVaultState.detailInflight.clear();
+}
+
+function conceptArticleById(id) {
+  return Array.from(
+    els.conceptVaultResults?.querySelectorAll(".concept-item") ?? [],
+  ).find((item) => item.dataset.conceptId === String(id));
+}
+
+function renderConceptDetail(id) {
+  if (!_conceptVaultState.open || !_conceptVaultState.expanded.has(String(id))) {
+    return;
+  }
+  const article = conceptArticleById(id);
+  const target = article?.querySelector(".concept-item-markdown");
+  if (!target) return;
+  const detail = _conceptVaultState.details.get(String(id));
+  if (detail) {
+    safeMarkedInto(target, detail.content || detail.summary || "");
+    return;
+  }
+  const error = _conceptVaultState.detailErrors.get(String(id));
+  if (error) {
+    target.innerHTML = `
+      <div class="concept-detail-state concept-detail-state--error" role="alert">
+        <p>${escapeHtml(error)}</p>
+        <button type="button" data-concept-action="retry-detail">본문 다시 불러오기</button>
+      </div>
+    `;
+    return;
+  }
+  target.innerHTML = `
+    <div class="concept-detail-state" role="status">
+      <span class="inline-spinner" aria-hidden="true"></span>
+      <p>개념 본문을 불러오는 중…</p>
+    </div>
+  `;
+}
+
+async function ensureConceptDetail(id, { force = false } = {}) {
+  const key = String(id);
+  if (!force && _conceptVaultState.details.has(key)) {
+    renderConceptDetail(key);
+    return;
+  }
+  if (_conceptVaultState.detailInflight.has(key)) return;
+  if (force) _conceptVaultState.detailErrors.delete(key);
+  renderConceptDetail(key);
+  const controller = new AbortController();
+  _conceptVaultState.detailInflight.set(key, controller);
+  try {
+    const data = await requestConceptApi(
+      `/api/concepts/${encodeURIComponent(key)}`,
+      { signal: controller.signal },
+    );
+    if (controller.signal.aborted || !_conceptVaultState.open) return;
+    const detail = data?.concept && typeof data.concept === "object"
+      ? data.concept
+      : null;
+    if (!detail) throw new Error("개념 본문이 비어 있습니다.");
+    _conceptVaultState.details.set(key, {
+      ...conceptById(key),
+      ...detail,
+    });
+    _conceptVaultState.detailErrors.delete(key);
+    renderConceptDetail(key);
+  } catch (error) {
+    if (controller.signal.aborted) return;
+    _conceptVaultState.detailErrors.set(
+      key,
+      `본문을 불러오지 못했어요. ${error.message}`,
+    );
+    renderConceptDetail(key);
+  } finally {
+    if (_conceptVaultState.detailInflight.get(key) === controller) {
+      _conceptVaultState.detailInflight.delete(key);
+    }
+  }
+}
+
+function renderConceptVaultResults() {
+  if (!els.conceptVaultResults) return;
+  const concepts = _conceptVaultState.concepts;
+  els.conceptVaultResults.setAttribute("aria-busy", "false");
+  if (concepts.length === 0) {
+    renderConceptVaultState(
+      "empty",
+      _conceptVaultState.query
+        ? "설명과 이어지는 개념을 찾지 못했어요."
+        : "아직 보관한 개념이 없어요. lookup 답변을 북마크해보세요.",
+    );
+    return;
+  }
+  const modeLabel = _conceptVaultState.query ? "로컬 검색" : "보관한 개념";
+  setConceptVaultStatus(`${modeLabel} ${_conceptVaultState.resultTotal}개`);
+  els.conceptVaultResults.innerHTML = concepts
+    .map((concept, index) => {
+      const id = String(concept?.id ?? index);
+      const term = String(concept?.term ?? "이름 없는 개념").trim();
+      const aliases = normalizeConceptAliases(concept?.aliases);
+      const summary = conceptSummary(concept);
+      const expanded = _conceptVaultState.expanded.has(id);
+      const editing = _conceptVaultState.editingId === id;
+      const confirming = _conceptVaultState.deleteConfirmId === id;
+      const bodyId = `concept-vault-body-${index}`;
+      const meta = [
+        concept?.chapterTitle ? displayChapterTitle(concept.chapterTitle) : "",
+        concept?.depth ? `depth ${concept.depth}` : "",
+      ].filter(Boolean);
+      return `
+        <article class="concept-item${expanded ? " expanded" : ""}" data-concept-id="${escapeAttr(id)}" role="listitem">
+          <div class="concept-item-row">
+            <button class="concept-item-toggle" type="button" data-concept-action="toggle" aria-expanded="${String(expanded)}" aria-controls="${bodyId}">
+              <span class="concept-item-bookmark" aria-hidden="true">${BOOKMARK_SAVED_SVG_INLINE}</span>
+              <span class="concept-item-copy">
+                <strong>${escapeHtml(term)}</strong>
+                ${aliases.length ? `<span class="concept-item-aliases">${aliases.map((alias) => `<span>${escapeHtml(alias)}</span>`).join("")}</span>` : ""}
+                ${summary ? `<span class="concept-item-summary">${escapeHtml(summary)}</span>` : ""}
+              </span>
+              <svg class="concept-item-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+            <div class="concept-item-actions">
+              <button type="button" data-concept-action="edit" aria-label="${escapeAttr(term)} 이름과 별칭 편집">편집</button>
+              <button type="button" class="concept-item-delete${confirming ? " confirming" : ""}" data-concept-action="delete" aria-label="${escapeAttr(term)} 삭제">${confirming ? "삭제 확인" : "삭제"}</button>
+            </div>
+          </div>
+          <div class="concept-item-edit${editing ? "" : " hidden"}">
+            <label>
+              <span>개념 이름</span>
+              <input class="concept-edit-term" type="text" value="${escapeAttr(term)}" autocomplete="off" />
+            </label>
+            <label>
+              <span>별칭</span>
+              <input class="concept-edit-aliases" type="text" value="${escapeAttr(aliases.join(", "))}" placeholder="쉼표로 구분" autocomplete="off" />
+            </label>
+            <div class="concept-item-edit-actions">
+              <button type="button" data-concept-action="cancel-edit">취소</button>
+              <button type="button" class="primary" data-concept-action="save-edit">저장</button>
+            </div>
+          </div>
+          <section id="${bodyId}" class="concept-item-body${expanded ? "" : " hidden"}">
+            <div class="concept-item-markdown"></div>
+            ${meta.length ? `<footer>${meta.map((value) => `<span>${escapeHtml(value)}</span>`).join("")}</footer>` : ""}
+          </section>
+        </article>
+      `;
+    })
+    .join("");
+
+  // 목록/검색 응답은 compact 메타데이터만 받는다. 긴 Markdown은 사용자가
+  // 펼친 항목만 별도 요청하고, 받은 상세는 세션 동안 재사용한다.
+  els.conceptVaultResults
+    .querySelectorAll(".concept-item.expanded")
+    .forEach((article) => {
+      const id = article.dataset.conceptId;
+      renderConceptDetail(id);
+      if (
+        !_conceptVaultState.details.has(id) &&
+        !_conceptVaultState.detailErrors.has(id)
+      ) {
+        void ensureConceptDetail(id);
+      }
+    });
+}
+
+function focusConceptAction(id, action) {
+  window.setTimeout(() => {
+    const article = Array.from(
+      els.conceptVaultResults?.querySelectorAll(".concept-item") ?? [],
+    ).find((item) => item.dataset.conceptId === String(id));
+    article?.querySelector(`[data-concept-action="${action}"]`)?.focus();
+  }, 0);
+}
+
+async function handleConceptVaultAction(button) {
+  const action = button.dataset.conceptAction;
+  if (action === "retry") {
+    await loadConceptVault(_conceptVaultState.query);
+    return;
+  }
+  const article = button.closest(".concept-item");
+  const id = article?.dataset.conceptId;
+  if (!article || id == null) return;
+  const concept = conceptById(id);
+  if (!concept) return;
+
+  if (action === "retry-detail") {
+    await ensureConceptDetail(id, { force: true });
+    return;
+  }
+
+  if (action !== "delete") _conceptVaultState.deleteConfirmId = null;
+  if (action === "toggle") {
+    if (_conceptVaultState.expanded.has(id)) _conceptVaultState.expanded.delete(id);
+    else _conceptVaultState.expanded.add(id);
+    renderConceptVaultResults();
+    focusConceptAction(id, "toggle");
+    return;
+  }
+  if (action === "edit") {
+    _conceptVaultState.editingId = id;
+    renderConceptVaultResults();
+    window.setTimeout(() => {
+      const item = Array.from(
+        els.conceptVaultResults.querySelectorAll(".concept-item"),
+      ).find((candidate) => candidate.dataset.conceptId === id);
+      item?.querySelector(".concept-edit-term")?.focus();
+    }, 0);
+    return;
+  }
+  if (action === "cancel-edit") {
+    _conceptVaultState.editingId = null;
+    renderConceptVaultResults();
+    focusConceptAction(id, "edit");
+    return;
+  }
+  if (action === "save-edit") {
+    const termInput = article.querySelector(".concept-edit-term");
+    const aliasesInput = article.querySelector(".concept-edit-aliases");
+    const term = termInput?.value.trim() ?? "";
+    if (!term) {
+      setConceptVaultStatus("개념 이름을 입력해주세요.");
+      termInput?.focus();
+      return;
+    }
+    const aliases = normalizeConceptAliases(aliasesInput?.value);
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    try {
+      const data = await requestConceptApi(
+        `/api/concepts/${encodeURIComponent(id)}`,
+        { method: "PATCH", body: { term, aliases } },
+      );
+      const updated = data?.concept && typeof data.concept === "object"
+        ? data.concept
+        : {};
+      _conceptVaultState.concepts = _conceptVaultState.concepts.map((item) =>
+        String(item?.id) === id
+          ? { ...item, ...updated, term, aliases }
+          : item,
+      );
+      if (_conceptVaultState.details.has(id)) {
+        _conceptVaultState.details.set(id, {
+          ..._conceptVaultState.details.get(id),
+          ...updated,
+          term,
+          aliases,
+        });
+      }
+      _conceptVaultState.editingId = null;
+      renderConceptVaultResults();
+      setConceptVaultStatus(`“${term}”을 수정했어요.`);
+      focusConceptAction(id, "edit");
+    } catch (error) {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      setConceptVaultStatus(`수정하지 못했어요. ${error.message}`);
+    }
+    return;
+  }
+  if (action === "delete") {
+    if (_conceptVaultState.deleteConfirmId !== id) {
+      _conceptVaultState.deleteConfirmId = id;
+      renderConceptVaultResults();
+      focusConceptAction(id, "delete");
+      setConceptVaultStatus("한 번 더 누르면 개념이 삭제돼요.");
+      return;
+    }
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+    const conceptIndex = _conceptVaultState.concepts.findIndex(
+      (item) => String(item?.id) === id,
+    );
+    const nextConcept =
+      _conceptVaultState.concepts[conceptIndex + 1] ??
+      _conceptVaultState.concepts[conceptIndex - 1] ??
+      null;
+    try {
+      await requestConceptApi(`/api/concepts/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      _conceptVaultState.concepts = _conceptVaultState.concepts.filter(
+        (item) => String(item?.id) !== id,
+      );
+      _conceptVaultState.expanded.delete(id);
+      _conceptVaultState.details.delete(id);
+      _conceptVaultState.detailErrors.delete(id);
+      _conceptVaultState.detailInflight.get(id)?.abort();
+      _conceptVaultState.detailInflight.delete(id);
+      _conceptVaultState.deleteConfirmId = null;
+      _conceptVaultState.resultTotal = Math.max(
+        0,
+        _conceptVaultState.resultTotal - 1,
+      );
+      setConceptVaultCount(_conceptVaultState.libraryTotal - 1);
+      renderConceptVaultResults();
+      const nextId = nextConcept?.id;
+      if (nextId != null) focusConceptAction(String(nextId), "toggle");
+      else window.setTimeout(() => els.conceptVaultSearch?.focus(), 0);
+      void refreshConceptVaultCount();
+    } catch (error) {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+      setConceptVaultStatus(`삭제하지 못했어요. ${error.message}`);
+    }
+  }
+}
+
+async function saveLookupConcept(card, button) {
+  const payload = _lookupConceptDrafts.get(card);
+  if (!payload || button.disabled || card.dataset.conceptSaved) return;
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  button.title = "개념 보관함에 저장하는 중";
+  try {
+    const data = await requestConceptApi("/api/concepts", {
+      method: "POST",
+      body: payload,
+    });
+    const conceptId = data?.concept?.id;
+    if (conceptId != null) card.dataset.conceptSaved = String(conceptId);
+    else card.dataset.conceptSaved = "true";
+    card.classList.add("lookup-card--saved");
+    button.innerHTML = BOOKMARK_SAVED_SVG_INLINE;
+    button.classList.add("saved");
+    button.removeAttribute("aria-busy");
+    button.setAttribute(
+      "aria-label",
+      data?.created === false
+        ? `“${payload.term}” 최신 답변으로 업데이트됨`
+        : `“${payload.term}” 보관됨`,
+    );
+    button.title =
+      data?.created === false ? "최신 답변으로 업데이트" : "보관됨";
+    if (conceptId != null && data?.concept) {
+      _conceptVaultState.details.set(String(conceptId), data.concept);
+    }
+    _lookupConceptDrafts.delete(card);
+    if (data?.created !== false) {
+      setConceptVaultCount(_conceptVaultState.libraryTotal + 1);
+    }
+    void refreshConceptVaultCount();
+    setStatus(
+      data?.created === false
+        ? `“${payload.term}”을 최신 답변으로 업데이트했어요.`
+        : `“${payload.term}”을 개념 보관함에 저장했어요.`,
+      "success",
+    );
+  } catch (error) {
+    button.disabled = false;
+    button.removeAttribute("aria-busy");
+    button.title = "개념 보관함에 다시 저장";
+    button.setAttribute("aria-label", `“${payload.term}” 개념 보관함에 다시 저장`);
+    setStatus(`개념을 보관하지 못했어요: ${error.message}`, "error");
+  }
+}
+
+// ──────────────────────────────────────────────────────────
+// v0.5.58 — 챕터 본문 맥락 요약 (β 방향)
+//   Buddy 메시지가 챕터의 어느 부분을 가리키는지 (인용+요약) 형식으로
+//   Look-up 패널에 카드로 표시. 매 메시지 문맥 버튼 또는 드래그 toolbar에서 트리거.
+// ──────────────────────────────────────────────────────────
+
 
 async function runChapterContext({ targetMessageText, selectionText } = {}) {
   if (!state.session?.id) {
@@ -6033,7 +6909,7 @@ function renderSearchResults(res, q) {
     items.push({
       kind: "roadmap",
       payload: r,
-      label: cleanUiLabel(r.name),
+      label: displayRepoName(r.name),
       sublabel: r.path,
     });
   }
@@ -6043,7 +6919,7 @@ function renderSearchResults(res, q) {
       kind: "chapter",
       payload: c,
       label: cleanUiLabel(c.title),
-      sublabel: `${cleanUiLabel(c.roadmapName)} · ${c.chapterId}`,
+      sublabel: `${displayRepoName(c.roadmapName)} · ${c.chapterId}`,
     });
   }
   // 노트
@@ -6052,7 +6928,7 @@ function renderSearchResults(res, q) {
       kind: "note",
       payload: n,
       label: cleanUiLabel(n.title || n.topic),
-      sublabel: `d${n.depth} · ${n.date} · ${cleanUiLabel(n.roadmapName) || "?"} · ${n.chapterId ?? "?"}`,
+      sublabel: `d${n.depth} · ${n.date} · ${displayRepoName(n.roadmapName) || "?"} · ${n.chapterId ?? "?"}`,
     });
   }
   _searchState.items = items;

@@ -16,10 +16,10 @@
       href="/vendor/highlight-github.css"
     />
     <link rel="stylesheet" href="/vendor/katex.min.css" />
-    <link rel="stylesheet" href="/white-brand.css?v=0.6.15" />
-    <link rel="stylesheet" href="/helix.css?v=0.6.15" />
-    <link rel="stylesheet" href="/product-polish.css?v=0.6.15" />
-    <link rel="stylesheet" href="/verification.css?v=0.6.15" />
+    <link rel="stylesheet" href="/white-brand.css?v=0.7.0" />
+    <link rel="stylesheet" href="/helix.css?v=0.7.0" />
+    <link rel="stylesheet" href="/product-polish.css?v=0.7.0" />
+    <link rel="stylesheet" href="/verification.css?v=0.7.0" />
   </head>
   <body class="light-mode">
     <svg class="blue-symbol-library" width="0" height="0" aria-hidden="true" focusable="false">
@@ -344,6 +344,13 @@
 
     <aside id="lookup-panel" class="lookup-panel hidden" aria-hidden="true" aria-label="보조 노트">
       <header class="lookup-panel-header">
+        <button id="concept-vault-open" class="lookup-vault-btn" type="button" aria-haspopup="dialog" aria-controls="concept-vault-modal" aria-label="개념 보관함 열기, 0개">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1Z"/>
+          </svg>
+          <span>개념 보관함</span>
+          <span id="concept-vault-count" class="lookup-vault-count" aria-live="polite">0</span>
+        </button>
         <div class="lookup-panel-actions">
           <button id="lookup-expand" class="lookup-panel-mini icon-btn" type="button" title="전체화면 토글" aria-label="전체화면 토글">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -452,6 +459,34 @@
         </select>
         <button type="button" id="lookup-question-submit" class="lookup-question-submit">보내기</button>
       </div>
+    </div>
+
+    <div id="concept-vault-modal" class="modal-overlay hidden" aria-hidden="true">
+      <section class="modal concept-vault-modal" role="dialog" aria-modal="true" aria-labelledby="concept-vault-title" aria-describedby="concept-vault-description">
+        <header class="concept-vault-header">
+          <div>
+            <h2 id="concept-vault-title">개념 보관함</h2>
+            <p id="concept-vault-description">이름이 기억나지 않아도 설명으로 찾을 수 있어요.</p>
+          </div>
+          <button id="concept-vault-close" class="modal-close" type="button" aria-label="개념 보관함 닫기">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </header>
+        <div class="concept-vault-search-row" role="search">
+          <div class="concept-vault-search-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7"/>
+              <path d="m20 20-4-4"/>
+            </svg>
+            <input id="concept-vault-search" type="search" autocomplete="off" spellcheck="false" placeholder="개념 이름이나 기억나는 설명으로 검색" aria-label="보관한 개념 검색" aria-controls="concept-vault-results" aria-describedby="concept-vault-status" />
+            <button id="concept-vault-search-clear" class="concept-vault-search-clear hidden" type="button" aria-label="검색어 지우기">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="concept-vault-status" class="concept-vault-status" role="status" aria-live="polite"></div>
+        <div id="concept-vault-results" class="concept-vault-results" role="list" aria-busy="false"></div>
+      </section>
     </div>
 
     <div id="search-modal" class="modal-overlay hidden" aria-hidden="true">
@@ -595,7 +630,17 @@
                 <polyline points="21 12 17 12 14 21 10 3 7 12 3 12"/>
               </svg>
             </span>
-            <span class="update-banner-text" id="update-banner-text">최신 버전입니다.</span>
+            <span class="update-banner-copy">
+              <span class="update-banner-text" id="update-banner-text">최신 버전입니다.</span>
+              <span id="update-download-progress" class="update-download-progress hidden" aria-hidden="true">
+                <span id="update-progress-meter" role="progressbar" aria-label="업데이트 다운로드 진행률" aria-valuemin="0" aria-valuemax="100">
+                  <span class="update-progress-track" aria-hidden="true">
+                    <span id="update-progress-bar" class="update-progress-bar"></span>
+                  </span>
+                </span>
+                <span id="update-progress-detail" class="update-progress-detail" aria-live="polite"></span>
+              </span>
+            </span>
             <button id="update-recheck-btn" class="update-mini-btn" type="button" title="다시 확인">↻</button>
             <a id="update-releases-link" class="update-mini-btn" href="#" title="GitHub Releases 페이지 열기">Releases</a>
             <button id="update-install-btn" class="update-install-btn hidden" type="button">받기</button>
@@ -849,6 +894,6 @@
       </div>
     </div>
 
-    <script type="module" src="/app.js?v=0.6.15"></script>
+    <script type="module" src="/app.js?v=0.7.0"></script>
   </body>
 </html>

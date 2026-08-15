@@ -5,6 +5,7 @@ import {
   escapeHtml,
   escapeAttr,
   cleanUiLabel,
+  inferConceptTerm,
   cssEscape,
   truncate,
   _relTime,
@@ -106,6 +107,52 @@ describe("util.cleanUiLabel", () => {
     assert.equal(cleanUiLabel("C++ 기초"), "C++ 기초");
     assert.equal(cleanUiLabel("Math 📐 Notes"), "Math 📐 Notes");
     assert.equal(cleanUiLabel(null), "");
+  });
+});
+
+
+describe("util.inferConceptTerm", () => {
+  test("keeps a short explicit keyword instead of renaming it from the answer", () => {
+    assert.equal(
+      inferConceptTerm("CoW", "# Copy-on-Write (CoW)\n답변입니다."),
+      "CoW",
+    );
+    assert.equal(inferConceptTerm("복사 시 쓰기", "# 다른 제목"), "복사 시 쓰기");
+  });
+
+  test("extracts an explicitly named concept from a natural-language lookup", () => {
+    assert.equal(
+      inferConceptTerm(
+        "원본 공유하다 수정 때 복사하는 거 뭐였지?",
+        "네, 그 개념의 정식 이름은 **Copy-on-Write (CoW)**야.\n\n정의부터 볼게.",
+      ),
+      "Copy-on-Write (CoW)",
+    );
+  });
+
+  test("uses the first meaningful heading or an initial technical bold term", () => {
+    assert.equal(
+      inferConceptTerm("레이어를 합쳐 보이는 그거 뭐지?", "## OverlayFS\n여러 레이어를 합쳐 보여요."),
+      "OverlayFS",
+    );
+    assert.equal(
+      inferConceptTerm("수정할 때만 복사하는 방식 알려줘", "좋은 질문이야. **Copy-on-Write (CoW)**는 원본을 공유해."),
+      "Copy-on-Write (CoW)",
+    );
+  });
+
+  test("rejects generic emphasis and falls back to the question when ambiguous", () => {
+    const query = "이해했던 원본 공유 방식이 뭐였지?";
+    assert.equal(
+      inferConceptTerm(query, "## 핵심\n좋은 질문이야. **핵심**은 원본을 먼저 공유하는 거야."),
+      query,
+    );
+  });
+
+  test("bounds an ambiguous long query to the persisted term contract", () => {
+    const inferred = inferConceptTerm(`${"긴 질문 ".repeat(50)}뭐였지?`, "**핵심**만 설명합니다.");
+    assert.ok(Array.from(inferred).length <= 160);
+    assert.match(inferred, /…$/u);
   });
 });
 

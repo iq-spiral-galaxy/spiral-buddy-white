@@ -31,6 +31,86 @@ export function cleanUiLabel(value) {
     .trimStart();
 }
 
+const GENERIC_CONCEPT_LABEL = /^(?:답변|설명|정의|개념|핵심|핵심\s*(?:요약|정리|내용|원리|동작\s*원리)|요약|정리|결론|(?:짧은\s*)?예시|참고|좋은\s*질문|정답|이름|명칭)$/iu;
+const QUESTION_LIKE_ENDING = /(?:[?？!！]|뭐(?:야|지|였지|인가요?)?|무엇(?:인가요?)?|어떤\s*(?:거|것)(?:야|지|인가요?)?|어떻게|알려\s*(?:줘|주세요)|설명(?:해\s*(?:줘|주세요))?|찾아\s*(?:줘|주세요)|기억\s*(?:나|나요)|(?:인|인\s*건|라는\s*건|하는\s*건|한\s*건|거|것)(?:가|지|야|인가요?)?)\s*$/iu;
+
+function limitConceptLabel(value, maxLength = 160) {
+  const chars = Array.from(String(value ?? "").trim());
+  if (chars.length <= maxLength) return chars.join("");
+  return `${chars.slice(0, maxLength - 1).join("").trimEnd()}…`;
+}
+
+function cleanConceptCandidate(value) {
+  const cleaned = String(value ?? "")
+    .replace(/\[([^\[\]]+)\]\([^)]+\)/gu, "$1")
+    .replace(/<[^>]*>/gu, "")
+    .replace(/[`*_~]/gu, "")
+    .replace(/^\s*(?:#{1,6}|[-–—:：])\s*/u, "")
+    .replace(/\s+/gu, " ")
+    .replace(/\s*(?:(?:이란|란)\s*(?:무엇인가요?|뭔가요?)?|(?:이란|란)[?？])\s*$/u, "")
+    .replace(/[\s:：;；,，。.!！?？]+$/u, "")
+    .trim();
+  if (!cleaned || Array.from(cleaned).length > 160) return "";
+  if (GENERIC_CONCEPT_LABEL.test(cleaned)) return "";
+  if (/\s(?:입니다|이에요|예요|한다|합니다|했어요|해요)$/u.test(cleaned)) return "";
+  return cleaned;
+}
+
+function isShortKeywordQuery(value) {
+  const query = String(value ?? "").replace(/\s+/gu, " ").trim();
+  if (!query || Array.from(query).length > 80 || /[\r\n]/u.test(query)) {
+    return false;
+  }
+  if (QUESTION_LIKE_ENDING.test(query)) return false;
+  return query.split(" ").filter(Boolean).length <= 4;
+}
+
+function isNaturalLanguageQuery(value) {
+  const query = String(value ?? "").replace(/\s+/gu, " ").trim();
+  return Array.from(query).length > 80 || QUESTION_LIKE_ENDING.test(query);
+}
+
+function looksTechnical(value) {
+  return /[\p{Script=Latin}\p{Number}]/u.test(value) || /[-+/#()[\]_.]/u.test(value);
+}
+
+/**
+ * lookup 질문과 답변에서 보관할 개념명을 보수적으로 고른다.
+ * 짧은 키워드는 그대로 두고, 자연어 질문은 답변 초반의 이름 표기를 우선한다.
+ */
+export function inferConceptTerm(query, rawSource) {
+  const fallback = limitConceptLabel(String(query ?? "").replace(/\s+/gu, " "));
+  if (isShortKeywordQuery(fallback)) return fallback;
+
+  const source = String(rawSource ?? "").replace(/\r\n?/gu, "\n");
+  const openingLines = source
+    .split("\n")
+    .filter((line) => line.trim())
+    .slice(0, 12);
+  for (const line of openingLines) {
+    const heading = line.match(/^\s*#{1,3}\s+(.+)$/u);
+    const headingCandidate = cleanConceptCandidate(heading?.[1]);
+    if (headingCandidate) return headingCandidate;
+  }
+
+  const explicitName = source.slice(0, 700).match(
+    /(?:(?:정식|정확한|공식|기술적)\s*)?(?:이름|명칭)(?:은|는|이|가)?\s*(?:바로|정확히)?\s*(?:[:：=]\s*)?\*\*([^*\n]{1,180})\*\*/iu,
+  );
+  const explicitCandidate = cleanConceptCandidate(explicitName?.[1]);
+  if (explicitCandidate) return explicitCandidate;
+
+  if (isNaturalLanguageQuery(fallback)) {
+    const initial = source.slice(0, 700);
+    for (const match of initial.matchAll(/\*\*([^*\n]{1,180})\*\*/gu)) {
+      const boldCandidate = cleanConceptCandidate(match[1]);
+      if (boldCandidate && looksTechnical(boldCandidate)) return boldCandidate;
+    }
+  }
+
+  return fallback;
+}
+
+
 /** CSS 셀렉터/식별자 이스케이프 — CSS.escape 우선, 폴백 정규식. */
 export function cssEscape(s) {
   if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(s);

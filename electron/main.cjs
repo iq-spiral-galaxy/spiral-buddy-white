@@ -24,6 +24,7 @@ const { spawn, spawnSync } = require("node:child_process");
 const net = require("node:net");
 const https = require("node:https");
 const { pathToFileURL } = require("node:url");
+const { pipeline } = require("node:stream/promises");
 
 // dev: <worktree>/  ·  packaged: Contents/Resources/app/  (asar: false 기준)
 // app.getAppPath()가 두 경우 모두 정확.
@@ -40,6 +41,7 @@ let mainWindow = null;
 let setupWindow = null;
 let serverPort = null;
 let serverStarted = false;
+let updateShutdownApproved = false;
 // v0.5.105 — setupWindow.close()와 mainWindow 준비 사이의 "부팅 중" 구간 표시.
 // 이 구간엔 윈도우가 0개가 되는 순간이 있어, closed/window-all-closed 핸들러가
 // app.quit()을 발사해 첫 실행이 그냥 종료됐음(레이스). 이 플래그로 그 종료를 막는다.
@@ -555,6 +557,12 @@ async function createMainWindow() {
   // 것처럼 보이는 UX 버그. will-prevent-unload를 가로채서 native
   // confirm 다이얼로그를 띄우고 사용자 선택에 따라 강제 unload 진행.
   mainWindow.webContents.on("will-prevent-unload", (event) => {
+    if (updateShutdownApproved) {
+      // 사용자가 업데이트를 승인했고 설치 파일 검증까지 끝난 경우에는
+      // 세션 beforeunload가 재시작을 다시 막지 않게 한다.
+      event.preventDefault();
+      return;
+    }
     const choice = dialog.showMessageBoxSync(mainWindow, {
       type: "warning",
       buttons: ["취소", "저장 없이 종료"],
@@ -840,6 +848,18 @@ function cmpVersion(a, b) {
   return 0;
 }
 
+function expectedUpdateAssetName(version) {
+  if (process.platform === "darwin") {
+    return process.arch === "arm64"
+      ? `Spiral.Buddy.White-${version}-arm64.dmg`
+      : `Spiral.Buddy.White-${version}.dmg`;
+  }
+  if (process.platform === "win32") {
+    return `Spiral.Buddy.White.Setup.${version}.exe`;
+  }
+  return null;
+}
+
 ipcMain.handle("app:check-update", async (_e, { force } = {}) => {
   const releasesPageUrl = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/latest`;
   // 캐시 — 5분 안 지났으면 그대로 반환 (단, force=true면 무시)
@@ -881,10 +901,35 @@ ipcMain.handle("app:check-update", async (_e, { force } = {}) => {
       return result;
     }
     const updateAvailable = cmpVersion(tag, APP_VERSION) > 0;
+    const expectedAsset = expectedUpdateAssetName(tag);
+    const releaseAsset = expectedAsset
+      ? (Array.isArray(data?.assets) ? data.assets : []).find(
+          (asset) => asset?.name === expectedAsset,
+        )
+      : null;
+    if (updateAvailable && expectedAsset && !releaseAsset) {
+      const result = {
+        current: APP_VERSION,
+        latest: tag,
+        updateAvailable: false,
+        error: `${expectedAsset} 설치 파일이 아직 준비되지 않았습니다. 잠시 후 다시 확인해주세요.`,
+        releaseUrl: data?.html_url ?? null,
+        releasesPageUrl,
+      };
+      _updateCache = { at: Date.now(), data: result };
+      return result;
+    }
     const result = {
       current: APP_VERSION,
       latest: tag,
       updateAvailable,
+      asset: releaseAsset
+        ? {
+            name: releaseAsset.name,
+            size: Number(releaseAsset.size ?? 0),
+            url: releaseAsset.browser_download_url,
+          }
+        : null,
       releaseUrl: data?.html_url ?? null,
       publishedAt: data?.published_at ?? null,
       releasesPageUrl,
@@ -905,55 +950,194 @@ ipcMain.handle("app:check-update", async (_e, { force } = {}) => {
   }
 });
 
-/** 플랫폼별 install 스크립트 생성. macOS + Windows 자동 install 지원. */
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, `'"'"'`)}'`;
+}
+
+function macUpdatePaths(version) {
+  return {
+    targetApp: "/Applications/Spiral Buddy White.app",
+    stagedApp: `/Applications/.Spiral Buddy White.update-${version}.app`,
+    backupApp: `/Applications/.Spiral Buddy White.backup-${version}.app`,
+    executableName: "Spiral Buddy White",
+    volumeAppName: "Spiral Buddy White.app",
+  };
+}
+
+function isValidMacAppBundle(appPath, executableName) {
+  try {
+    fs.accessSync(path.join(appPath, "Contents", "Info.plist"), fs.constants.R_OK);
+    fs.accessSync(
+      path.join(appPath, "Contents", "MacOS", executableName),
+      fs.constants.X_OK,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 실행 중인 앱을 닫기 전에 DMG를 마운트하고 새 앱 번들을 staging에 복사한다.
+ * 마운트·권한·복사·번들 검증이 하나라도 실패하면 현재 앱은 계속 열린다.
+ */
+async function prepareMacUpdate(version, dmgPath, logPath) {
+  const paths = macUpdatePaths(version);
+  let mountPoint = "";
+  const log = (message) => {
+    try {
+      fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${message}\n`);
+    } catch {}
+  };
+
+  try {
+    fs.writeFileSync(logPath, "", "utf8");
+    log(`preparing macOS update v${APP_VERSION} → v${version}`);
+
+    if (!fs.existsSync(paths.targetApp) && fs.existsSync(paths.backupApp)) {
+      log("recovering backup left by an interrupted update");
+      if (!isValidMacAppBundle(paths.backupApp, paths.executableName)) {
+        throw new Error("이전 앱 백업이 손상되어 자동 복구할 수 없습니다");
+      }
+      fs.renameSync(paths.backupApp, paths.targetApp);
+    } else if (
+      fs.existsSync(paths.targetApp) &&
+      fs.existsSync(paths.backupApp)
+    ) {
+      if (isValidMacAppBundle(paths.targetApp, paths.executableName)) {
+        // 현재 실행 중인 target이 정상 앱이므로 이전 성공 시도의 잔여 백업만 정리.
+        fs.rmSync(paths.backupApp, { recursive: true, force: true });
+      } else if (isValidMacAppBundle(paths.backupApp, paths.executableName)) {
+        fs.rmSync(paths.targetApp, { recursive: true, force: true });
+        fs.renameSync(paths.backupApp, paths.targetApp);
+      } else {
+        throw new Error("현재 앱과 이전 백업을 모두 검증하지 못했습니다");
+      }
+    }
+    if (!isValidMacAppBundle(paths.targetApp, paths.executableName)) {
+      throw new Error("현재 설치된 앱 번들을 확인하지 못했습니다");
+    }
+    fs.rmSync(paths.stagedApp, { recursive: true, force: true });
+
+    const attached = spawnSync("hdiutil", ["attach", "-nobrowse", dmgPath], {
+      encoding: "utf8",
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    if (attached.status !== 0) {
+      throw new Error(attached.stderr?.trim() || "DMG를 열지 못했습니다");
+    }
+    const attachOutput = `${attached.stdout ?? ""}\n${attached.stderr ?? ""}`;
+    const mounted = attachOutput
+      .split(/\r?\n/)
+      .map((line) => line.match(/(\/Volumes\/.*)$/)?.[1]?.trim())
+      .filter(Boolean);
+    mountPoint = mounted.at(-1) ?? "";
+    if (!mountPoint || !fs.existsSync(mountPoint)) {
+      throw new Error("DMG 마운트 위치를 확인하지 못했습니다");
+    }
+
+    const sourceApp = path.join(mountPoint, paths.volumeAppName);
+    if (!isValidMacAppBundle(sourceApp, paths.executableName)) {
+      throw new Error("DMG 안의 앱 번들이 올바르지 않습니다");
+    }
+    await fs.promises.cp(sourceApp, paths.stagedApp, {
+      recursive: true,
+      force: true,
+    });
+    spawnSync("xattr", ["-cr", paths.stagedApp], { stdio: "ignore" });
+    if (!isValidMacAppBundle(paths.stagedApp, paths.executableName)) {
+      throw new Error("복사한 앱 번들이 완전하지 않습니다");
+    }
+    log("staged app bundle verified; ready to restart");
+    return { ok: true, ...paths };
+  } catch (error) {
+    try {
+      fs.rmSync(paths.stagedApp, { recursive: true, force: true });
+    } catch {}
+    const reason = error instanceof Error ? error.message : String(error);
+    log(`prepare FAILED: ${reason}`);
+    return { ok: false, reason };
+  } finally {
+    if (mountPoint) {
+      spawnSync("hdiutil", ["detach", mountPoint], { stdio: "ignore" });
+    }
+    try {
+      fs.unlinkSync(dmgPath);
+    } catch {}
+  }
+}
+
+/** 검증과 staging을 마친 macOS 앱을 종료 후 원자적으로 교체하는 스크립트. */
 function buildInstallScript(version, logPath) {
   const platform = process.platform;
-  const arch = process.arch;
   if (platform === "darwin") {
-    const dmgName =
-      arch === "arm64"
-        ? `Spiral.Buddy.White-${version}-arm64.dmg`
-        : `Spiral.Buddy.White-${version}.dmg`;
-    const url = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/v${version}/${dmgName}`;
-    // 모든 출력을 logPath로 — 디버깅 가능.
-    // set -e는 사용 X (한 단계 실패해도 다음 시도하고 마지막에 open). 단계마다 echo로 진행 로깅.
+    const quotedLogPath = shellQuote(logPath);
+    const paths = macUpdatePaths(version);
+    const targetApp = shellQuote(paths.targetApp);
+    const stagedApp = shellQuote(paths.stagedApp);
+    const backupApp = shellQuote(paths.backupApp);
+    const executableName = shellQuote(paths.executableName);
     return `#!/bin/bash
-exec > "${logPath}" 2>&1
+exec > ${quotedLogPath} 2>&1
 echo "=== Spiral Buddy White update start (v${version}) ==="
 date
+trap 'rm -f "$0"' EXIT
+EXECUTABLE_NAME=${executableName}
 
-echo "-- step 1: quitting current app"
+valid_bundle() {
+  [ -f "$1/Contents/Info.plist" ] && [ -x "$1/Contents/MacOS/$EXECUTABLE_NAME" ]
+}
+
+restore_and_reopen() {
+  if [ -d ${backupApp} ]; then
+    rm -rf ${targetApp}
+    mv ${backupApp} ${targetApp} 2>/dev/null || true
+  fi
+  if valid_bundle ${targetApp}; then
+    open ${targetApp} 2>/dev/null || true
+  fi
+}
+
+fail_and_reopen() {
+  echo "ERROR: $1"
+  restore_and_reopen
+  exit 1
+}
+
+echo "-- step 1: checking staged app"
+if ! valid_bundle ${stagedApp}; then
+  fail_and_reopen "staged app bundle is missing or incomplete"
+fi
+
+echo "-- step 2: quitting current app"
 osascript -e 'tell application "Spiral Buddy White" to quit' 2>/dev/null || true
 sleep 2.5
 
-echo "-- step 2: downloading dmg from ${url}"
-cd /tmp || exit 1
-if ! curl -fL --retry 3 -o /tmp/spiral.dmg "${url}"; then
-  echo "ERROR: download failed"
-  exit 1
+echo "-- step 3: recovering an interrupted swap if needed"
+if [ ! -d ${targetApp} ] && [ -d ${backupApp} ]; then
+  mv ${backupApp} ${targetApp} || fail_and_reopen "previous app recovery failed"
+elif [ -d ${targetApp} ] && [ -d ${backupApp} ]; then
+  rm -rf ${backupApp}
+fi
+if ! valid_bundle ${targetApp}; then
+  fail_and_reopen "current app bundle is missing or incomplete"
 fi
 
-echo "-- step 3: mounting dmg"
-if ! hdiutil attach -nobrowse -quiet /tmp/spiral.dmg; then
-  echo "ERROR: mount failed"
-  exit 1
+echo "-- step 4: swapping apps with rollback"
+if [ -d ${targetApp} ] && ! mv ${targetApp} ${backupApp}; then
+  fail_and_reopen "current app backup failed"
+fi
+if ! mv ${stagedApp} ${targetApp}; then
+  fail_and_reopen "activating update failed"
+fi
+if ! valid_bundle ${targetApp}; then
+  fail_and_reopen "activated app bundle is incomplete"
 fi
 
-echo "-- step 4: replacing app in /Applications"
-rm -rf '/Applications/Spiral Buddy White.app'
-if ! cp -R "/Volumes/Spiral Buddy White ${version}/Spiral Buddy White.app" /Applications/; then
-  echo "ERROR: copy failed — /Applications 권한이 부족할 수 있음"
-  hdiutil detach -quiet "/Volumes/Spiral Buddy White ${version}" 2>/dev/null || true
-  exit 1
+echo "-- step 5: opening updated app"
+if ! open ${targetApp}; then
+  fail_and_reopen "updated app did not open"
 fi
-
-echo "-- step 5: unmount + cleanup"
-hdiutil detach -quiet "/Volumes/Spiral Buddy White ${version}" 2>/dev/null || true
-xattr -cr '/Applications/Spiral Buddy White.app' 2>/dev/null || true
-rm -f /tmp/spiral.dmg
-
-echo "-- step 6: opening updated app"
-open '/Applications/Spiral Buddy White.app'
 echo "=== done ==="
 `;
   }
@@ -982,6 +1166,22 @@ function writePendingUpdateMarker(info) {
   }
 }
 
+function cleanupSuccessfulUpdateBackup(version) {
+  if (
+    process.platform !== "darwin" ||
+    !/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version ?? "")
+  ) {
+    return;
+  }
+  const backupPath = path.join(
+    "/Applications",
+    `.Spiral Buddy White.backup-${version}.app`,
+  );
+  try {
+    fs.rmSync(backupPath, { recursive: true, force: true });
+  } catch {}
+}
+
 function checkPendingUpdateOutcome() {
   const markerPath = pendingUpdateMarkerPath();
   let marker = null;
@@ -996,6 +1196,7 @@ function checkPendingUpdateOutcome() {
   } catch {}
   if (!marker?.targetVersion) return;
   if (cmpVersion(APP_VERSION, marker.targetVersion) >= 0) {
+    cleanupSuccessfulUpdateBackup(marker.targetVersion);
     return; // 성공 — 조용히
   }
   const hasLog = marker.logPath && fs.existsSync(marker.logPath);
@@ -1032,7 +1233,7 @@ function downloadFile(url, dest, onProgress, redirectsLeft = 5) {
     const req = https.get(
       url,
       { headers: { "User-Agent": `spiral-buddy/${APP_VERSION}` } },
-      (res) => {
+      async (res) => {
         if (
           res.statusCode &&
           res.statusCode >= 300 &&
@@ -1043,8 +1244,17 @@ function downloadFile(url, dest, onProgress, redirectsLeft = 5) {
           if (redirectsLeft <= 0) {
             return reject(new Error("redirect 한도 초과"));
           }
+          let nextUrl;
+          try {
+            nextUrl = new URL(res.headers.location, url);
+          } catch {
+            return reject(new Error("올바르지 않은 redirect URL"));
+          }
+          if (nextUrl.protocol !== "https:") {
+            return reject(new Error("안전하지 않은 redirect가 차단되었습니다"));
+          }
           return downloadFile(
-            res.headers.location,
+            nextUrl.toString(),
             dest,
             onProgress,
             redirectsLeft - 1,
@@ -1061,16 +1271,12 @@ function downloadFile(url, dest, onProgress, redirectsLeft = 5) {
           received += chunk.length;
           if (onProgress) onProgress(received, total);
         });
-        res.pipe(out);
-        out.on("finish", () => out.close(() => resolve(undefined)));
-        out.on("error", (e) => {
-          res.destroy();
-          reject(e);
-        });
-        res.on("error", (e) => {
-          out.destroy();
-          reject(e);
-        });
+        try {
+          await pipeline(res, out);
+          resolve(undefined);
+        } catch (error) {
+          reject(error);
+        }
       },
     );
     req.on("error", reject);
@@ -1081,93 +1287,236 @@ function downloadFile(url, dest, onProgress, redirectsLeft = 5) {
   });
 }
 
-// ── Windows (v0.5.75) — PowerShell 스크립트 방식 폐기, 직접 방식으로.
-// (install-update 핸들러에서 분리 — spawn/args/페이로드 verbatim.)
-async function installUpdateWindows(version, logPath) {
-    const exeName = `Spiral.Buddy.White.Setup.${version}.exe`;
-    const url = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/v${version}/${exeName}`;
-    const dest = path.join(os.tmpdir(), `spiral-buddy-setup-${version}.exe`);
-    const log = (msg) => {
-      try {
-        fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`);
-      } catch {}
-    };
-    try {
-      fs.writeFileSync(logPath, "", "utf8");
-    } catch {}
-    log(`win32 direct update v${APP_VERSION} → v${version}`);
-    log(`download: ${url}`);
-
-    let lastPctSent = -1;
-    try {
-      await downloadFile(url, dest, (received, total) => {
-        const pct = total > 0 ? Math.round((received / total) * 100) : null;
-        // IPC 폭주 방지 — 1% 단위로만 전송
-        if (pct !== null && pct !== lastPctSent) {
-          lastPctSent = pct;
-          for (const w of BrowserWindow.getAllWindows()) {
-            if (!w.isDestroyed()) {
-              w.webContents.send("update:progress", { received, total, pct });
-            }
-          }
-        }
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      log(`download FAILED: ${msg}`);
-      try {
-        fs.unlinkSync(dest);
-      } catch {}
-      return { ok: false, reason: `다운로드 실패: ${msg}` };
+function emitUpdateProgress(payload) {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send("update:progress", payload);
     }
+  }
+}
 
-    let size = 0;
-    try {
-      size = fs.statSync(dest).size;
-    } catch {}
-    log(`downloaded ${size} bytes`);
-    // installer는 정상적으로 수십 MB — 너무 작으면 에러 페이지/잘린 파일
-    if (size < 10 * 1024 * 1024) {
-      log("size too small — aborting");
-      try {
-        fs.unlinkSync(dest);
-      } catch {}
-      return {
-        ok: false,
-        reason: "다운로드된 파일이 비정상적으로 작아요 — 잠시 후 다시 시도해주세요",
-      };
-    }
+/**
+ * 앱을 열어 둔 채 release asset을 먼저 내려받고 최소 크기까지 확인한다.
+ * Content-Length가 없는 응답도 received byte를 보내 UI가 무응답처럼 보이지 않게 한다.
+ */
+async function downloadUpdateAsset({ asset, dest, minBytes }) {
+  const expectedPrefix = `https://github.com/${GH_OWNER}/${GH_REPO}/releases/download/`;
+  if (
+    !asset ||
+    typeof asset.url !== "string" ||
+    !asset.url.startsWith(expectedPrefix) ||
+    !Number.isFinite(asset.size) ||
+    asset.size < minBytes
+  ) {
+    return { ok: false, reason: "업데이트 설치 파일 정보가 올바르지 않습니다" };
+  }
+  const url = asset.url;
+  const partialPath = `${dest}.part`;
+  try {
+    fs.unlinkSync(dest);
+  } catch {}
+  try {
+    fs.unlinkSync(partialPath);
+  } catch {}
 
-    // 여기서부터는 앱이 꺼지므로 marker로 다음 부팅 때 성공/실패 판정 (v0.5.74)
-    writePendingUpdateMarker({
-      targetVersion: version,
-      fromVersion: APP_VERSION,
-      logPath,
-      at: Date.now(),
+  emitUpdateProgress({
+    phase: "downloading",
+    received: 0,
+    total: asset.size,
+    pct: 0,
+  });
+  let lastPctSent = -1;
+  let lastUnknownSentAt = 0;
+  try {
+    await downloadFile(url, partialPath, (received, total) => {
+      const effectiveTotal = total > 0 ? total : asset.size;
+      const pct = effectiveTotal > 0
+        ? Math.max(0, Math.min(100, Math.round((received / effectiveTotal) * 100)))
+        : null;
+      const now = Date.now();
+      if (
+        (pct !== null && pct !== lastPctSent) ||
+        (pct === null && now - lastUnknownSentAt >= 500)
+      ) {
+        lastPctSent = pct ?? lastPctSent;
+        lastUnknownSentAt = now;
+        emitUpdateProgress({
+          phase: "downloading",
+          received,
+          total: effectiveTotal,
+          pct,
+        });
+      }
     });
-    log("spawning installer: /S --force-run");
+  } catch (error) {
     try {
-      const child = spawn(dest, ["/S", "--force-run"], {
+      fs.unlinkSync(partialPath);
+    } catch {}
+    const message = error instanceof Error ? error.message : String(error);
+    emitUpdateProgress({ phase: "error", message });
+    return { ok: false, reason: `다운로드 실패: ${message}` };
+  }
+
+  emitUpdateProgress({ phase: "verifying", pct: 100 });
+  let size = 0;
+  try {
+    size = fs.statSync(partialPath).size;
+  } catch {}
+  if (size < minBytes) {
+    try {
+      fs.unlinkSync(partialPath);
+    } catch {}
+    const reason = "다운로드된 파일이 비정상적으로 작아요 — 잠시 후 다시 시도해주세요";
+    emitUpdateProgress({ phase: "error", message: reason });
+    return { ok: false, reason };
+  }
+  if (size !== asset.size) {
+    try {
+      fs.unlinkSync(partialPath);
+    } catch {}
+    const reason = "다운로드 크기가 릴리즈 정보와 일치하지 않아요 — 다시 시도해주세요";
+    emitUpdateProgress({ phase: "error", message: reason });
+    return { ok: false, reason };
+  }
+
+  try {
+    fs.renameSync(partialPath, dest);
+  } catch (error) {
+    try {
+      fs.unlinkSync(partialPath);
+    } catch {}
+    const message = error instanceof Error ? error.message : String(error);
+    emitUpdateProgress({ phase: "error", message });
+    return { ok: false, reason: `다운로드 파일 준비 실패: ${message}` };
+  }
+
+  emitUpdateProgress({
+    phase: "downloaded",
+    received: size,
+    total: size,
+    pct: 100,
+  });
+  return { ok: true, url, dest, size };
+}
+
+function spawnDetachedAndConfirm(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    let child;
+    try {
+      child = spawn(command, args, {
+        ...options,
         detached: true,
         stdio: "ignore",
       });
-      child.unref();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      log(`spawn FAILED: ${msg}`);
-      try {
-        fs.unlinkSync(pendingUpdateMarkerPath());
-      } catch {}
-      return { ok: false, reason: `설치 실행 실패: ${msg}` };
+    } catch (error) {
+      reject(error);
+      return;
     }
-    setTimeout(() => app.quit(), 800);
-    return { ok: true, mode: "windows-direct", logPath };
+    const onError = (error) => reject(error);
+    child.once("error", onError);
+    child.once("spawn", () => {
+      child.removeListener("error", onError);
+      child.unref();
+      resolve(child);
+    });
+  });
 }
 
-async function installUpdateMacOS(version, logPath) {
-  // ── macOS / 기타 — 기존 스크립트 방식 유지 (안정 동작 확인됨)
+// ── Windows (v0.5.75) — PowerShell 스크립트 방식 폐기, 직접 방식으로.
+//
+// 기존: detached PowerShell이 다운로드+설치 → 어떤 단계가 실패해도
+// (TLS, 정책, AV, 프록시...) 앱은 이미 꺼졌고 사용자는 아무것도 못 봄.
+// v0.5.71 TLS fix 후에도 "받기 누르면 그냥 꺼지고 업데이트 안 됨" 보고.
+//
+// 새 구조:
+//   1. 다운로드를 Electron 앱 안에서 Node https로 수행
+//      — 앱이 떠 있는 동안 진행률 표시, 실패 시 앱 유지 + 에러 표시
+//      — 업데이트 체크와 같은 네트워크 스택이라 체크가 되면 다운로드도 됨
+//   2. 받은 NSIS installer를 직접 실행: /S --force-run
+//      — --force-run은 electron-builder NSIS의 공식 옵션 (설치 후 자동 실행)
+//      — Node https 다운로드는 mark-of-the-web이 안 붙어 SmartScreen 차단 없음
+//   3. 그 후에만 앱 종료. 설치 실패는 v0.5.74 marker가 다음 부팅 때 감지.
+async function installUpdateWindows(version, logPath, asset) {
+  const dest = path.join(os.tmpdir(), `spiral-buddy-white-setup-${version}.exe`);
+  const log = (msg) => {
+    try {
+      fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${msg}\n`);
+    } catch {}
+  };
+  try {
+    fs.writeFileSync(logPath, "", "utf8");
+  } catch {}
+  log(`win32 direct update v${APP_VERSION} → v${version}`);
+  const download = await downloadUpdateAsset({
+    asset,
+    dest,
+    minBytes: 10 * 1024 * 1024,
+  });
+  if (!download.ok) {
+    log(`download FAILED: ${download.reason}`);
+    return download;
+  }
+  const size = download.size;
+  log(`downloaded ${size} bytes`);
+
+  // 여기서부터는 앱이 꺼지므로 marker로 다음 부팅 때 성공/실패 판정 (v0.5.74)
+  writePendingUpdateMarker({
+    targetVersion: version,
+    fromVersion: APP_VERSION,
+    logPath,
+    at: Date.now(),
+  });
+  log("spawning installer: /S --force-run");
+  emitUpdateProgress({ phase: "installing", pct: 100 });
+  try {
+    // 다운로드와 실행 파일 검증이 끝난 뒤에만 세션 종료 보호를 우회한다.
+    updateShutdownApproved = true;
+    await spawnDetachedAndConfirm(dest, ["/S", "--force-run"]);
+  } catch (e) {
+    updateShutdownApproved = false;
+    const msg = e instanceof Error ? e.message : String(e);
+    log(`spawn FAILED: ${msg}`);
+    try {
+      fs.unlinkSync(pendingUpdateMarkerPath());
+    } catch {}
+    return { ok: false, reason: `설치 실행 실패: ${msg}` };
+  }
+  setTimeout(() => app.quit(), 800);
+  return { ok: true, mode: "windows-direct", logPath };
+}
+
+// ── macOS — DMG를 앱 안에서 먼저 받은 뒤에만 종료·교체.
+async function installUpdateMacOS(version, logPath, asset) {
+  if (process.platform !== "darwin") {
+    shell.openExternal(
+      `https://github.com/${GH_OWNER}/${GH_REPO}/releases/latest`,
+    );
+    return { ok: true, mode: "browser" };
+  }
+  const dmgPath = path.join(
+    os.tmpdir(),
+    `spiral-buddy-white-${version}-${process.arch}.dmg`,
+  );
+  const download = await downloadUpdateAsset({
+    asset,
+    dest: dmgPath,
+    minBytes: 10 * 1024 * 1024,
+  });
+  if (!download.ok) return download;
+
+  // DMG 마운트·복사·번들 검증은 현재 앱이 열린 상태에서 끝낸다.
+  // 이 단계가 실패하면 종료하지 않고 렌더러에 즉시 원인을 보여준다.
+  const prepared = await prepareMacUpdate(version, dmgPath, logPath);
+  if (!prepared.ok) {
+    emitUpdateProgress({ phase: "error", message: prepared.reason });
+    return prepared;
+  }
+
   const script = buildInstallScript(version, logPath);
   if (!script) {
+    try {
+      fs.rmSync(prepared.stagedApp, { recursive: true, force: true });
+    } catch {}
     shell.openExternal(
       `https://github.com/${GH_OWNER}/${GH_REPO}/releases/latest`,
     );
@@ -1184,39 +1533,62 @@ async function installUpdateMacOS(version, logPath) {
     // macOS
     const tmpPath = path.join(
       os.tmpdir(),
-      `spiral-buddy-update-${Date.now()}.sh`,
+      `spiral-buddy-white-update-${Date.now()}.sh`,
     );
     fs.writeFileSync(tmpPath, script, { mode: 0o755 });
     // log 파일 미리 만들어 두기
     fs.writeFileSync(logPath, "", "utf8");
-    const proc = spawn("/bin/bash", [tmpPath], {
-      detached: true,
-      stdio: "ignore",
-    });
-    proc.unref();
-    setTimeout(() => app.quit(), 500);
+    // 설치 준비가 모두 끝난 뒤에만 세션 beforeunload 보호를 우회한다.
+    updateShutdownApproved = true;
+    await spawnDetachedAndConfirm("/bin/bash", [tmpPath]);
+    emitUpdateProgress({ phase: "installing", pct: 100 });
+    setTimeout(() => app.quit(), 800);
     return { ok: true, mode: "macos-installer", logPath };
   } catch (err) {
+    updateShutdownApproved = false;
     // 스크립트 spawn 자체가 실패 — 렌더러가 즉시 에러를 보여주므로
     // marker를 남기면 다음 부팅 때 중복 실패 알림이 뜸. 정리.
     try {
       fs.unlinkSync(pendingUpdateMarkerPath());
     } catch {}
+    try {
+      fs.rmSync(prepared.stagedApp, { recursive: true, force: true });
+    } catch {}
+    const reason = err instanceof Error ? err.message : String(err);
+    emitUpdateProgress({ phase: "error", message: reason });
     return {
       ok: false,
-      reason: err instanceof Error ? err.message : String(err),
+      reason,
     };
   }
 }
 
+let _updateInstallPromise = null;
 ipcMain.handle("app:install-update", async (_e, { version }) => {
-  if (!version) return { ok: false, reason: "no version" };
+  if (!/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/.test(version ?? "")) {
+    return { ok: false, reason: "올바르지 않은 버전입니다" };
+  }
+  const checked = _updateCache?.data;
+  if (
+    Date.now() - (_updateCache?.at ?? 0) >= UPDATE_CACHE_TTL ||
+    checked?.latest !== version ||
+    checked?.updateAvailable !== true
+  ) {
+    return { ok: false, reason: "먼저 최신 버전을 다시 확인해주세요" };
+  }
+  if (_updateInstallPromise) {
+    return { ok: false, reason: "이미 업데이트를 받고 있어요" };
+  }
   // v0.5.74 — 로그를 고정 위치에 (tmpdir은 사용자가 못 찾음)
   const logPath = path.join(app.getPath("userData"), "last-update.log");
-  if (process.platform === "win32") {
-    return installUpdateWindows(version, logPath);
+  _updateInstallPromise = process.platform === "win32"
+    ? installUpdateWindows(version, logPath, checked.asset)
+    : installUpdateMacOS(version, logPath, checked.asset);
+  try {
+    return await _updateInstallPromise;
+  } finally {
+    _updateInstallPromise = null;
   }
-  return installUpdateMacOS(version, logPath);
 });
 
 // ─── Vault 자동 감지 ─────────────────────────────────────────
