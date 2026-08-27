@@ -6406,6 +6406,30 @@ body.composer-resizing {
   transition: width 180ms ease;
 }
 
+.update-download-progress.post-download .update-progress-track {
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.update-download-progress.post-download .update-progress-track::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 18%,
+    color-mix(in srgb, white 55%, var(--accent)) 48%,
+    transparent 78%
+  );
+  transform: translateX(-120%);
+  animation: update-progress-shimmer 1.9s ease-in-out infinite;
+}
+
+.update-download-progress.post-download .update-progress-bar,
+.update-download-progress.post-download .update-progress-detail {
+  animation: update-progress-breathe 1.9s ease-in-out infinite;
+}
+
 .update-download-progress.indeterminate .update-progress-bar {
   width: 38%;
   animation: update-progress-indeterminate 1.35s ease-in-out infinite;
@@ -6425,6 +6449,17 @@ body.composer-resizing {
   100% { transform: translateX(270%); }
 }
 
+@keyframes update-progress-shimmer {
+  0%, 18% { transform: translateX(-120%); opacity: 0; }
+  42% { opacity: 0.75; }
+  72%, 100% { transform: translateX(120%); opacity: 0; }
+}
+
+@keyframes update-progress-breathe {
+  0%, 100% { opacity: 0.58; }
+  50% { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .update-progress-bar {
     transition: none;
@@ -6434,6 +6469,12 @@ body.composer-resizing {
     animation: none;
     width: 100%;
     opacity: 0.45;
+  }
+
+  .update-download-progress.post-download .update-progress-track::after,
+  .update-download-progress.post-download .update-progress-bar,
+  .update-download-progress.post-download .update-progress-detail {
+    animation: none;
   }
 }
 

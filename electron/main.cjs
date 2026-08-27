@@ -25,6 +25,7 @@ const net = require("node:net");
 const https = require("node:https");
 const { pathToFileURL } = require("node:url");
 const { pipeline } = require("node:stream/promises");
+const { isValidMacAppBundle } = require("./mac-bundle-integrity.cjs");
 
 // dev: <worktree>/  ·  packaged: Contents/Resources/app/  (asar: false 기준)
 // app.getAppPath()가 두 경우 모두 정확.
@@ -964,19 +965,6 @@ function macUpdatePaths(version) {
   };
 }
 
-function isValidMacAppBundle(appPath, executableName) {
-  try {
-    fs.accessSync(path.join(appPath, "Contents", "Info.plist"), fs.constants.R_OK);
-    fs.accessSync(
-      path.join(appPath, "Contents", "MacOS", executableName),
-      fs.constants.X_OK,
-    );
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
  * 실행 중인 앱을 닫기 전에 DMG를 마운트하고 새 앱 번들을 staging에 복사한다.
  * 마운트·권한·복사·번들 검증이 하나라도 실패하면 현재 앱은 계속 열린다.
@@ -1043,8 +1031,21 @@ async function prepareMacUpdate(version, dmgPath, logPath) {
     await fs.promises.cp(sourceApp, paths.stagedApp, {
       recursive: true,
       force: true,
+      // 상대 framework 링크를 /Volumes/... 절대 링크로 재작성하지 않는다.
+      verbatimSymlinks: true,
     });
     spawnSync("xattr", ["-cr", paths.stagedApp], { stdio: "ignore" });
+
+    // DMG가 붙어 있으면 잘못된 /Volumes/... 링크도 정상처럼 보일 수 있다.
+    // 반드시 먼저 분리한 뒤 staging 번들을 다시 검증한다.
+    const detached = spawnSync("hdiutil", ["detach", mountPoint], {
+      encoding: "utf8",
+      maxBuffer: 1024 * 1024,
+    });
+    if (detached.status !== 0) {
+      throw new Error(detached.stderr?.trim() || "DMG를 안전하게 분리하지 못했습니다");
+    }
+    mountPoint = "";
     if (!isValidMacAppBundle(paths.stagedApp, paths.executableName)) {
       throw new Error("복사한 앱 번들이 완전하지 않습니다");
     }
@@ -1078,23 +1079,44 @@ function buildInstallScript(version, logPath) {
     const backupApp = shellQuote(paths.backupApp);
     const executableName = shellQuote(paths.executableName);
     return `#!/bin/bash
-exec > ${quotedLogPath} 2>&1
+exec >> ${quotedLogPath} 2>&1
 echo "=== Spiral Buddy White update start (v${version}) ==="
 date
 trap 'rm -f "$0"' EXIT
 EXECUTABLE_NAME=${executableName}
+TARGET_APP=${targetApp}
+STAGED_APP=${stagedApp}
+BACKUP_APP=${backupApp}
+OLD_APP_PID=${process.pid}
 
 valid_bundle() {
-  [ -f "$1/Contents/Info.plist" ] && [ -x "$1/Contents/MacOS/$EXECUTABLE_NAME" ]
+  local app_path="$1"
+  local framework="$app_path/Contents/Frameworks/Electron Framework.framework/Electron Framework"
+  [ -f "$app_path/Contents/Info.plist" ] || return 1
+  [ -x "$app_path/Contents/MacOS/$EXECUTABLE_NAME" ] || return 1
+  [ -x "$framework" ] || return 1
+  while IFS= read -r link_path; do
+    local link_target
+    link_target="$(readlink "$link_path")" || return 1
+    case "$link_target" in
+      /*) return 1 ;;
+    esac
+    [ -e "$link_path" ] || return 1
+  done < <(find "$app_path" -type l -print)
+  return 0
+}
+
+target_process_running() {
+  pgrep -f "$TARGET_APP/Contents/MacOS/$EXECUTABLE_NAME" >/dev/null 2>&1
 }
 
 restore_and_reopen() {
-  if [ -d ${backupApp} ]; then
-    rm -rf ${targetApp}
-    mv ${backupApp} ${targetApp} 2>/dev/null || true
+  if [ -d "$BACKUP_APP" ]; then
+    rm -rf "$TARGET_APP"
+    mv "$BACKUP_APP" "$TARGET_APP" 2>/dev/null || true
   fi
-  if valid_bundle ${targetApp}; then
-    open ${targetApp} 2>/dev/null || true
+  if valid_bundle "$TARGET_APP"; then
+    open "$TARGET_APP" 2>/dev/null || true
   fi
 }
 
@@ -1105,38 +1127,53 @@ fail_and_reopen() {
 }
 
 echo "-- step 1: checking staged app"
-if ! valid_bundle ${stagedApp}; then
+if ! valid_bundle "$STAGED_APP"; then
   fail_and_reopen "staged app bundle is missing or incomplete"
 fi
 
 echo "-- step 2: quitting current app"
 osascript -e 'tell application "Spiral Buddy White" to quit' 2>/dev/null || true
-sleep 2.5
+for _ in {1..40}; do
+  if ! kill -0 "$OLD_APP_PID" 2>/dev/null; then break; fi
+  sleep 0.25
+done
+if kill -0 "$OLD_APP_PID" 2>/dev/null; then
+  fail_and_reopen "current app did not quit in time"
+fi
 
 echo "-- step 3: recovering an interrupted swap if needed"
-if [ ! -d ${targetApp} ] && [ -d ${backupApp} ]; then
-  mv ${backupApp} ${targetApp} || fail_and_reopen "previous app recovery failed"
-elif [ -d ${targetApp} ] && [ -d ${backupApp} ]; then
-  rm -rf ${backupApp}
+if [ ! -d "$TARGET_APP" ] && [ -d "$BACKUP_APP" ]; then
+  mv "$BACKUP_APP" "$TARGET_APP" || fail_and_reopen "previous app recovery failed"
+elif [ -d "$TARGET_APP" ] && [ -d "$BACKUP_APP" ]; then
+  rm -rf "$BACKUP_APP"
 fi
-if ! valid_bundle ${targetApp}; then
+if ! valid_bundle "$TARGET_APP"; then
   fail_and_reopen "current app bundle is missing or incomplete"
 fi
 
 echo "-- step 4: swapping apps with rollback"
-if [ -d ${targetApp} ] && ! mv ${targetApp} ${backupApp}; then
+if [ -d "$TARGET_APP" ] && ! mv "$TARGET_APP" "$BACKUP_APP"; then
   fail_and_reopen "current app backup failed"
 fi
-if ! mv ${stagedApp} ${targetApp}; then
+if ! mv "$STAGED_APP" "$TARGET_APP"; then
   fail_and_reopen "activating update failed"
 fi
-if ! valid_bundle ${targetApp}; then
+if ! valid_bundle "$TARGET_APP"; then
   fail_and_reopen "activated app bundle is incomplete"
 fi
 
 echo "-- step 5: opening updated app"
-if ! open ${targetApp}; then
+if ! open "$TARGET_APP"; then
   fail_and_reopen "updated app did not open"
+fi
+echo "-- step 6: checking updated app liveness"
+sleep 4
+if ! target_process_running; then
+  fail_and_reopen "updated app exited during launch"
+fi
+sleep 2
+if ! target_process_running; then
+  fail_and_reopen "updated app did not stay running"
 fi
 echo "=== done ==="
 `;
@@ -1159,10 +1196,17 @@ function pendingUpdateMarkerPath() {
 }
 
 function writePendingUpdateMarker(info) {
+  const markerPath = pendingUpdateMarkerPath();
+  const temporaryPath = `${markerPath}.${process.pid}.${Date.now()}.tmp`;
   try {
-    fs.writeFileSync(pendingUpdateMarkerPath(), JSON.stringify(info), "utf8");
+    fs.writeFileSync(temporaryPath, JSON.stringify(info), "utf8");
+    fs.renameSync(temporaryPath, markerPath);
+    return true;
   } catch {
-    // marker 못 써도 업데이트 자체는 진행
+    try {
+      fs.unlinkSync(temporaryPath);
+    } catch {}
+    return false;
   }
 }
 
@@ -1190,15 +1234,15 @@ function checkPendingUpdateOutcome() {
   } catch {
     return; // marker 없음 — 직전에 업데이트 시도 안 함
   }
-  // one-shot — 판정과 무관하게 제거 (실패 다이얼로그가 매 부팅 반복되지 않게)
+  if (!marker?.targetVersion) return;
+  if (cmpVersion(APP_VERSION, marker.targetVersion) >= 0) {
+    // 실제 UI 부팅까지 끝난 뒤 안정화 시간을 재도록 호출자에게 넘긴다.
+    return { markerPath, targetVersion: marker.targetVersion };
+  }
+  // 실패 알림은 one-shot으로 처리한다.
   try {
     fs.unlinkSync(markerPath);
   } catch {}
-  if (!marker?.targetVersion) return;
-  if (cmpVersion(APP_VERSION, marker.targetVersion) >= 0) {
-    cleanupSuccessfulUpdateBackup(marker.targetVersion);
-    return; // 성공 — 조용히
-  }
   const hasLog = marker.logPath && fs.existsSync(marker.logPath);
   const buttons = hasLog
     ? ["Releases 페이지 열기", "로그 보기", "닫기"]
@@ -1222,6 +1266,16 @@ function checkPendingUpdateOutcome() {
   } else if (hasLog && choice === 1) {
     shell.showItemInFolder(marker.logPath);
   }
+}
+
+function scheduleSuccessfulUpdateCleanup(outcome) {
+  if (!outcome?.markerPath || !outcome?.targetVersion) return;
+  setTimeout(() => {
+    cleanupSuccessfulUpdateBackup(outcome.targetVersion);
+    try {
+      fs.unlinkSync(outcome.markerPath);
+    } catch {}
+  }, 30_000);
 }
 
 /**
@@ -1460,12 +1514,17 @@ async function installUpdateWindows(version, logPath, asset) {
   log(`downloaded ${size} bytes`);
 
   // 여기서부터는 앱이 꺼지므로 marker로 다음 부팅 때 성공/실패 판정 (v0.5.74)
-  writePendingUpdateMarker({
+  if (!writePendingUpdateMarker({
     targetVersion: version,
     fromVersion: APP_VERSION,
     logPath,
     at: Date.now(),
-  });
+  })) {
+    const reason = "업데이트 복구 정보를 안전하게 저장하지 못했습니다";
+    log(`marker FAILED: ${reason}`);
+    emitUpdateProgress({ phase: "error", message: reason });
+    return { ok: false, reason };
+  }
   log("spawning installer: /S --force-run");
   emitUpdateProgress({ phase: "installing", pct: 100 });
   try {
@@ -1506,6 +1565,7 @@ async function installUpdateMacOS(version, logPath, asset) {
 
   // DMG 마운트·복사·번들 검증은 현재 앱이 열린 상태에서 끝낸다.
   // 이 단계가 실패하면 종료하지 않고 렌더러에 즉시 원인을 보여준다.
+  emitUpdateProgress({ phase: "preparing", pct: 100 });
   const prepared = await prepareMacUpdate(version, dmgPath, logPath);
   if (!prepared.ok) {
     emitUpdateProgress({ phase: "error", message: prepared.reason });
@@ -1523,12 +1583,19 @@ async function installUpdateMacOS(version, logPath, asset) {
     return { ok: true, mode: "browser" };
   }
   // v0.5.74 — 다음 부팅에서 성공/실패 판정할 marker
-  writePendingUpdateMarker({
+  if (!writePendingUpdateMarker({
     targetVersion: version,
     fromVersion: APP_VERSION,
     logPath,
     at: Date.now(),
-  });
+  })) {
+    try {
+      fs.rmSync(prepared.stagedApp, { recursive: true, force: true });
+    } catch {}
+    const reason = "업데이트 복구 정보를 안전하게 저장하지 못했습니다";
+    emitUpdateProgress({ phase: "error", message: reason });
+    return { ok: false, reason };
+  }
   try {
     // macOS
     const tmpPath = path.join(
@@ -1536,8 +1603,7 @@ async function installUpdateMacOS(version, logPath, asset) {
       `spiral-buddy-white-update-${Date.now()}.sh`,
     );
     fs.writeFileSync(tmpPath, script, { mode: 0o755 });
-    // log 파일 미리 만들어 두기
-    fs.writeFileSync(logPath, "", "utf8");
+    // prepareMacUpdate가 남긴 preflight 로그에 swap 결과를 이어 쓴다.
     // 설치 준비가 모두 끝난 뒤에만 세션 beforeunload 보호를 우회한다.
     updateShutdownApproved = true;
     await spawnDetachedAndConfirm("/bin/bash", [tmpPath]);
@@ -2439,9 +2505,11 @@ if (!app.requestSingleInstanceLock()) {
 
       // v0.5.74 — 직전 업데이트 시도의 성공/실패 판정.
       // 실패 시 다이얼로그로 알리고 수동 설치 경로 안내 (기존엔 조용히 실패).
-      checkPendingUpdateOutcome();
+      const successfulUpdate = checkPendingUpdateOutcome();
 
       await bootOrSetup();
+      // main window/setup window가 실제로 열린 뒤에도 30초 동안 backup을 유지한다.
+      scheduleSuccessfulUpdateCleanup(successfulUpdate);
     })
     .catch((err) => {
       // v0.5.93 — 부팅 실패가 여기로 떨어지면(findFreePort/loadURL 등

@@ -134,6 +134,9 @@ describe("client UI contracts", () => {
     assert.match(html, /id="update-progress-detail"[^>]*aria-live="polite"/);
     assert.match(baseCss, /\.update-download-progress/);
     assert.match(baseCss, /\.update-progress-bar/);
+    assert.match(baseCss, /\.update-download-progress\.post-download/);
+    assert.match(baseCss, /update-progress-shimmer/);
+    assert.match(baseCss, /update-progress-breathe/);
     assert.match(baseCss, /prefers-reduced-motion: reduce/);
 
     const updateUi = app.slice(
@@ -144,6 +147,7 @@ describe("client UI contracts", () => {
     assert.match(updateUi, /window\.spiralUpdate\.onProgress/);
     assert.match(updateUi, /업데이트를 받는 중… \$\{pct\}%/);
     assert.match(updateUi, /다운로드 완료 · 앱을 다시 여는 중/);
+    assert.match(updateUi, /업데이트 적용 준비 중/);
     assert.match(updateUi, /다운로드가 끝난 뒤 앱이 자동으로 종료되고 다시 열립니다/);
     assert.doesNotMatch(updateUi, /alert\(`업데이트 실패/);
 
@@ -182,7 +186,9 @@ describe("client UI contracts", () => {
     );
     assert.match(macPreflight, /hdiutil[\s\S]*?attach/);
     assert.match(macPreflight, /await fs\.promises\.cp/);
+    assert.match(macPreflight, /verbatimSymlinks: true/);
     assert.match(macPreflight, /isValidMacAppBundle/);
+    assert.match(macPreflight, /hdiutil[\s\S]*?detach[\s\S]*?isValidMacAppBundle/);
     assert.match(macPreflight, /finally[\s\S]*?hdiutil[\s\S]*?detach/);
     const macSwapScript = electronMain.slice(
       electronMain.indexOf("function buildInstallScript"),
@@ -191,7 +197,13 @@ describe("client UI contracts", () => {
     assert.doesNotMatch(macSwapScript, /hdiutil attach/);
     assert.match(macSwapScript, /restore_and_reopen/);
     assert.match(macSwapScript, /fail_and_reopen/);
+    assert.match(macSwapScript, /exec >>/);
     assert.match(macSwapScript, /activated app bundle is incomplete/);
+    assert.match(macSwapScript, /updated app exited during launch/);
+    assert.match(macSwapScript, /updated app did not stay running/);
+    assert.match(electronMain, /require\("\.\/mac-bundle-integrity\.cjs"\)/);
+    assert.match(electronMain, /const temporaryPath = `\$\{markerPath\}/);
+    assert.match(electronMain, /scheduleSuccessfulUpdateCleanup/);
     assert.match(electronMain, /updateShutdownApproved = true/);
     assert.match(
       electronMain,
@@ -203,7 +215,7 @@ describe("client UI contracts", () => {
     assert.match(electronMain, /checked\?\.latest !== version/);
     assert.match(electronMain, /if \(_updateInstallPromise\)/);
     assert.match(updateUi, /renderActiveUpdateDownload/);
-    assert.doesNotMatch(updateUi, /aria-busy/);
+    assert.match(updateUi, /aria-busy/);
   });
 
   test("sidebar search is self-evident without a repeated heading", () => {

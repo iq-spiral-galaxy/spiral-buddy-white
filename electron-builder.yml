@@ -41,10 +41,10 @@ mac:
       arch:
         - arm64
         - x64
-  # Apple Developer ID 없이 ad-hoc 서명 ("-"). identity: null은 서명을 완전히 끄는 것이고
-  # 그 경우 macOS Sequoia에서 즉시 "손상됨" 표시. ad-hoc은 일부 환경에서 우회됨.
-  # 그래도 안 되면 사용자는 README 안내대로 `xattr -cr` 실행 필요.
-  identity: "-"
+  # Helper rename 뒤 afterPack 훅에서 `codesign --sign -`로 앱 전체를 ad-hoc
+  # 서명·검증한다. electron-builder의 identity:"-"는 인증서 이름 "-"를 찾아
+  # 실제 CI에서는 서명을 건너뛰므로 여기서는 중복 자동 서명을 끈다.
+  identity: null
   hardenedRuntime: false
   gatekeeperAssess: false
   # dock 호버 이름은 CFBundleName을 읽는다(CFBundleDisplayName/.app 파일명 아님 —
