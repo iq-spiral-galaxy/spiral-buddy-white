@@ -65,6 +65,7 @@ const CHAPTER_READ_CONCURRENCY = 8;
 // 즉시 무효화 (curated.ts에서 호출).
 const roadmapsCache = createTtlCache<Roadmap[]>(60_000, {
   loadTimeoutMs: 90_000,
+  staleWhileRevalidate: true,
 });
 const chaptersCache = createTtlCache<Chapter[]>(30_000, {
   loadTimeoutMs: 60_000,
@@ -81,6 +82,102 @@ export async function discoverRoadmaps(rootPath: string): Promise<Roadmap[]> {
   );
   // 호출자 mutation으로부터 캐시 보호
   return [...cached];
+}
+
+function isPathInside(root: string, candidate: string): boolean {
+  const relative = path.relative(root, candidate);
+  return (
+    relative === "" ||
+    (!relative.startsWith(`..${path.sep}`) &&
+      relative !== ".." &&
+      !path.isAbsolute(relative))
+  );
+}
+
+function canonicalRelativeSegments(
+  value: string,
+  options: { maxSegments?: number } = {},
+): string[] | null {
+  if (
+    !value ||
+    value.includes("\0") ||
+    value.includes("\\") ||
+    path.isAbsolute(value)
+  ) {
+    return null;
+  }
+  const segments = value.split("/");
+  if (
+    segments.some(
+      (segment) =>
+        !segment ||
+        segment === "." ||
+        segment === ".." ||
+        segment.startsWith(".") ||
+        segment === "node_modules",
+    ) ||
+    (options.maxSegments !== undefined &&
+      segments.length > options.maxSegments)
+  ) {
+    return null;
+  }
+  return segments;
+}
+
+/**
+ * UI가 보내는 canonical local roadmap id를 전체 트리 탐색 없이 해석한다.
+ *
+ * 긴 학습이 끝나면 기존 60초 cache가 만료되어 `/session/start`가 6-depth
+ * 로드맵 트리 전체를 다시 훑었다. 정식 id는 root 상대 경로이므로 대상 폴더만
+ * realpath/readdir로 검증하면 된다. fuzzy basename 입력은 null을 반환해 기존
+ * discover fallback이 처리한다.
+ */
+export async function resolveLocalRoadmapExact(
+  rootPath: string,
+  roadmapId: string,
+): Promise<Roadmap | null> {
+  const segments = canonicalRelativeSegments(roadmapId, {
+    maxSegments: MAX_DEPTH,
+  });
+  if (!segments) return null;
+
+  try {
+    const rootReal = await fs.realpath(rootPath);
+    const rootId = path.basename(rootReal);
+    const candidate =
+      roadmapId === rootId
+        ? rootReal
+        : path.resolve(rootReal, ...segments);
+    const candidateReal = await fs.realpath(candidate);
+    if (!isPathInside(rootReal, candidateReal)) return null;
+
+    // `foo`라는 fuzzy basename이 우연히 root 바로 아래에 있을 때만 exact로
+    // 취급한다. 반환 id는 실제 root-relative canonical id와 반드시 같아야 한다.
+    const canonicalId =
+      candidateReal === rootReal
+        ? rootId
+        : path.relative(rootReal, candidateReal).split(path.sep).join("/");
+    if (canonicalId !== roadmapId) return null;
+
+    const entries = await fs.readdir(candidateReal, { withFileTypes: true });
+    const chapterCount = entries.filter(
+      (entry) =>
+        entry.isFile() &&
+        entry.name.toLowerCase().endsWith(".md") &&
+        entry.name.toLowerCase() !== "readme.md",
+    ).length;
+    if (chapterCount < MIN_CHAPTERS) return null;
+
+    return {
+      id: canonicalId,
+      name: path.basename(candidateReal),
+      absolutePath: candidateReal,
+      chapterCount,
+      source: "local",
+    };
+  } catch {
+    return null;
+  }
 }
 
 async function discoverRoadmapsUncached(rootPath: string): Promise<Roadmap[]> {
@@ -259,6 +356,36 @@ export async function loadRoadmapChapters(
     loadRoadmapChaptersUncached(roadmap),
   );
   return [...cached];
+}
+
+/**
+ * 세션 시작용 단일 챕터 loader. 일반 세션에서 7개(또는 수백 개) 파일을 모두
+ * 읽은 뒤 하나를 찾던 비용을 없앤다. 검증 세션처럼 전체 sibling 문맥이 필요한
+ * 경로는 계속 loadRoadmapChapters를 사용한다.
+ */
+export async function loadRoadmapChapter(
+  roadmap: Roadmap,
+  chapterId: string,
+): Promise<Chapter | null> {
+  const segments = canonicalRelativeSegments(chapterId);
+  if (!segments) return null;
+  if (
+    path.extname(chapterId).toLowerCase() !== ".md" ||
+    path.basename(chapterId).toLowerCase() === "readme.md"
+  ) {
+    return null;
+  }
+
+  try {
+    const rootReal = await fs.realpath(roadmap.absolutePath);
+    const candidateReal = await fs.realpath(path.resolve(rootReal, ...segments));
+    if (!isPathInside(rootReal, candidateReal)) return null;
+    const stat = await fs.stat(candidateReal);
+    if (!stat.isFile()) return null;
+    return await loadChapterFile(candidateReal, roadmap, chapterId);
+  } catch {
+    return null;
+  }
 }
 
 async function loadRoadmapChaptersUncached(

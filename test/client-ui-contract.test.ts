@@ -339,6 +339,26 @@ describe("client UI contracts", () => {
       sessionStart,
       /state\.session = null;[\s\S]*?renderLearningHub\(\);/,
     );
+    assert.match(sessionStart, /_sessionStartInFlight = handle/);
+    assert.match(
+      sessionStart,
+      /state\.session = \{[\s\S]*?_sessionStartInFlight === handle\)[\s\S]*?handle\.startPhase = "first-question"[\s\S]*?classList\.add\("is-waiting"\)/,
+    );
+    assert.match(app, /startPhase === "first-question"/);
+    assert.match(sessionStart, /onFirstVisibleChunk: \(\) => setStatus\(""\)/);
+    assert.match(
+      baseCss,
+      /\.message\.assistant\.is-waiting > \.content::before/,
+    );
+
+    const interruption = app.slice(
+      app.indexOf("async function handleSessionInterruption()"),
+      app.indexOf("async function _handleSessionInterruptionBody()"),
+    );
+    assert.match(
+      interruption,
+      /reportSessionStartProgress\(\)[\s\S]*?state\.pending[\s\S]*?if \(!state\.session\)/,
+    );
   });
 
   test("roadmap rows keep compact progress beside the title and dates in disclosure", () => {
@@ -512,11 +532,11 @@ describe("client UI contracts", () => {
       productCss,
       /body\.light-mode[\s\S]*?:is\([\s\S]*?#input,[\s\S]*?textarea\.lookup-direct-input,[\s\S]*?\.lookup-direct-context,[\s\S]*?\.lookup-question-text[\s\S]*?\)::placeholder \{[\s\S]*?background: transparent !important;[\s\S]*?background-color: transparent !important;/,
     );
-    assert.match(html, /white-brand\.css\?v=0\.7\.0/);
-    assert.match(html, /helix\.css\?v=0\.7\.0/);
-    assert.match(html, /product-polish\.css\?v=0\.7\.0/);
-    assert.match(html, /verification\.css\?v=0\.7\.0/);
-    assert.match(html, /app\.js\?v=0\.7\.0/);
+    assert.match(html, /white-brand\.css\?v=0\.7\.1/);
+    assert.match(html, /helix\.css\?v=0\.7\.1/);
+    assert.match(html, /product-polish\.css\?v=0\.7\.1/);
+    assert.match(html, /verification\.css\?v=0\.7\.1/);
+    assert.match(html, /app\.js\?v=0\.7\.1/);
   });
 
   test("the 820px mobile shell keeps the main column visible and hides inert resizers", () => {

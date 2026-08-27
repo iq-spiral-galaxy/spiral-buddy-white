@@ -2222,6 +2222,14 @@ let _sessionEpoch = 0;
  * 같은 세션에 /end가 중복 발사돼 렌더러가 데드락처럼 멈췄음 → 한 번에 하나만 진행.
  */
 async function handleSessionInterruption() {
+  // 첫 질문/후속 답변 stream이 session snapshot을 쓰는 동안 저장·폐기하면
+  // 늦게 끝난 stream이 취소된 snapshot을 다시 만들 수 있다. 이동 자체를
+  // 답변 완료 뒤로 미뤄 서버와 UI의 session 세대를 일치시킨다.
+  if (reportSessionStartProgress()) return "cancel";
+  if (state.pending) {
+    setStatus("현재 답변이 끝난 뒤 이동할 수 있어요", "info");
+    return "cancel";
+  }
   if (!state.session) return "continue";
   if (_interruptInFlight) return "cancel";
   _interruptInFlight = true;
@@ -7307,28 +7315,34 @@ function showPastConversationModal(note, data) {
 // Session
 // ──────────────────────────────────────────────────────────
 
-// v0.5.73 — 세션 시작 중복 방지. 시작 fetch/stream 중 다른 챕터를 또
-// 클릭하면 els.messages가 두 번 비워지고 이전 스트림이 사라진 DOM에
-// write하는 race가 있었음.
-let _sessionStartInFlight = false;
+// 세션 생성과 첫 Buddy 답변이 끝날 때까지 중복 시작을 막되, 현재 단계를
+// 구분해 오래도록 "세션 시작 중"으로 오해하지 않게 한다. 첫 응답 도중 다른
+// 세션을 열면 취소된 옛 stream이 snapshot을 되살릴 수 있어 완료 전 전환은 막는다.
+let _sessionStartInFlight = null;
+
+function reportSessionStartProgress() {
+  if (!_sessionStartInFlight) return false;
+  setStatus(
+    _sessionStartInFlight.startPhase === "first-question"
+      ? "첫 질문을 준비하고 있어요"
+      : "학습 자료를 확인하는 중이에요",
+    "info",
+  );
+  return true;
+}
 
 async function startSession(chapterId) {
   const { verificationAttemptId } = arguments[1] ?? {};
-  if (_sessionStartInFlight) {
-    setStatus("세션 시작 중이에요 — 잠시만요", "info");
-    return;
-  }
-  // v0.5.75 — 플래그 set 이후 전 구간을 try로 감쌈. 기존엔 try 진입 전
-  // (abortStreams/resetQuiz 등)에서 예외가 나면 플래그가 영구 true로
-  // 남아 이후 모든 챕터 클릭이 "시작 중" 안내만 받는 잠금 상태가 됐음.
-  _sessionStartInFlight = true;
+  if (reportSessionStartProgress()) return;
   // v0.5.105 — 직전 세션의 end/message 스트림이 아직 열려 있으면 강제 종료.
   // (새 handle 생성 전에 호출해야 방금 만든 핸들까지 끊기지 않음.)
   abortStreams("session");
   const handle = createStreamHandle("session");
+  handle.startPhase = "setup";
+  _sessionStartInFlight = handle;
   try {
     const chapter = state.chapters.find((c) => c.id === chapterId);
-    setStatus("학습을 여는 중…");
+    setStatus("학습 자료 확인 중…");
     setPending(true);
 
     const res = await fetch("/api/session/start", {
@@ -7368,6 +7382,12 @@ async function startSession(chapterId) {
         null,
     };
 
+    // 서버가 session id를 발급하면 디스크 준비는 끝났다. 첫 답변 생성은 별도
+    // 단계로 표시하되, 완료 전 다른 start가 기존 snapshot을 되살리는 race는 막는다.
+    if (_sessionStartInFlight === handle) {
+      handle.startPhase = "first-question";
+    }
+
     state.justCompletedVerificationChapterId = null;
 
     // 서버가 세션 시작을 수락한 뒤에만 홈과 보조 노트를 비운다.
@@ -7388,7 +7408,11 @@ async function startSession(chapterId) {
     renderChapters(); // v0.5.98 — 활성(accent) 표식을 방금 시작한 챕터로 이동
 
     const assistantEl = appendAssistantMessage("");
-    await streamInto(res, assistantEl, handle);
+    assistantEl.classList.add("is-waiting");
+    setStatus("첫 질문 준비 중…", "info");
+    await streamInto(res, assistantEl, handle, {
+      onFirstVisibleChunk: () => setStatus(""),
+    });
 
     setPending(false);
     setStatus("");
@@ -7415,7 +7439,7 @@ async function startSession(chapterId) {
     }
   } finally {
     finishStreamHandle(handle);
-    _sessionStartInFlight = false;
+    if (_sessionStartInFlight === handle) _sessionStartInFlight = null;
   }
 }
 
@@ -8184,7 +8208,7 @@ function finalizeEndProgressCard(card, result) {
 // Streaming
 // ──────────────────────────────────────────────────────────
 
-async function streamInto(response, messageEl, handle) {
+async function streamInto(response, messageEl, handle, options = {}) {
   const reader = response.body.getReader();
   const contentEl = messageEl.querySelector(".content");
   const renderer = createProgressiveMarkdownRenderer(contentEl, {
@@ -8194,11 +8218,18 @@ async function streamInto(response, messageEl, handle) {
   // v0.5.73 — inactivity timeout + abort 지원. handle 없이 호출되는
   // 레거시 경로 대비 fallback handle 생성.
   const h = handle ?? createStreamHandle("session");
+  let visibleChunkSeen = false;
   try {
     await pumpStream(reader, h, (chunk) => {
+      if (!visibleChunkSeen && chunk.trim()) {
+        visibleChunkSeen = true;
+        messageEl.classList.remove("is-waiting");
+        options.onFirstVisibleChunk?.();
+      }
       renderer.append(chunk);
     });
   } finally {
+    messageEl.classList.remove("is-waiting");
     if (!handle) finishStreamHandle(h);
     // v0.5.75 — 스트림이 어떻게 끝나든 (성공/중단/에러) 받은 만큼은
     // 화면과 히스토리에 남김. 기존엔 에러 시 state.messages.push가

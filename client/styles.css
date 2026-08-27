@@ -8395,6 +8395,46 @@ body.light-mode .message.user .role {
   flex: 1;
 }
 
+/* 서버가 session id를 발급한 뒤 첫 AI token을 기다리는 짧은 단계.
+ * 빈 카드로 멈춘 것처럼 보이지 않되, 본문보다 조용한 한 줄만 보여준다. */
+.message.assistant.is-waiting > .content {
+  min-height: 86px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+}
+
+.message.assistant.is-waiting > .content::before {
+  content: "";
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+  border: 2px solid color-mix(in srgb, currentColor 22%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: session-opening-spin 1.15s linear infinite;
+}
+
+.message.assistant.is-waiting > .content::after {
+  content: "첫 질문을 준비하는 중";
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+@keyframes session-opening-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message.assistant.is-waiting > .content::before {
+    animation: none;
+  }
+}
+
 .message.assistant:hover .feedback-bar,
 .message.assistant .feedback-bar:focus-within {
   opacity: 1;

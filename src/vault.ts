@@ -284,8 +284,22 @@ export async function writeNewNote(
 
   await updateIndex(spiralRoot, fileName, note);
 
-  // v0.5.76 — 새 노트가 바로 진도/depth에 반영되게
-  invalidateNotesCache();
+  // 저장 직후 `다음 챕터`가 vault 전체를 다시 scan하지 않게 마지막 정상
+  // 목록에 방금 쓴 노트만 원자적으로 반영한다. cache가 아직 한 번도 채워지지
+  // 않은 cold 상태라면 누락된 옛 노트가 있을 수 있으므로 그때만 invalidate.
+  const cached = notesCache.peek(vaultPath);
+  const written = cached ? await readNote(filePath, fileName) : null;
+  const updated =
+    written !== null &&
+    notesCache.update(vaultPath, (current) =>
+      [written, ...current.filter((item) => item.filePath !== filePath)].sort(
+        (a, b) =>
+          b.modifiedAt.localeCompare(a.modifiedAt) ||
+          b.date.localeCompare(a.date) ||
+          a.relativePath.localeCompare(b.relativePath),
+      ),
+    );
+  if (!updated) invalidateNotesCache();
 
   return filePath;
 }

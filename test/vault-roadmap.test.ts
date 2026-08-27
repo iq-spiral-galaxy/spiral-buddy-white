@@ -17,8 +17,10 @@ import {
 import {
   discoverRoadmaps,
   findRoadmap,
+  loadRoadmapChapter,
   loadRoadmapChapters,
   invalidateRoadmapCaches,
+  resolveLocalRoadmapExact,
   type Roadmap,
 } from "../src/roadmap.js";
 import {
@@ -378,6 +380,24 @@ describe("vault: listSpiralNotes", () => {
     const second = await listSpiralNotes(vault);
     assert.equal(second.length, 1, "cache must be unaffected by caller mutation");
   });
+
+  test("writeNewNote writes through an already-loaded note cache", async () => {
+    const vault = await mkTmp("list-write-through");
+    invalidateNotesCache();
+    assert.deepEqual(await listSpiralNotes(vault), []);
+
+    const filePath = await writeNewNote(
+      vault,
+      baseNewNote({ topic: "Fresh", depth: 1 }),
+    );
+    // 디렉터리를 옮겨 disk rescan이면 빈 목록이 되게 한다. write-through
+    // cache라면 방금 저장한 metadata가 즉시 남아 있어야 한다.
+    const spiralRoot = path.dirname(filePath);
+    await fs.rename(spiralRoot, `${spiralRoot}-moved`);
+    const notes = await listSpiralNotes(vault);
+    assert.equal(notes.length, 1);
+    assert.equal(notes[0]!.chapter, "Fresh");
+  });
 });
 
 // ===========================================================================
@@ -643,6 +663,81 @@ describe("roadmap: discoverRoadmaps + loadRoadmapChapters fixture", () => {
     const byName = await findRoadmap(root, "inner-rm");
     assert.ok(byName);
     assert.equal(byName!.id, "container/inner-rm");
+  });
+
+  test("resolveLocalRoadmapExact resolves canonical root/nested ids without discovery", async () => {
+    const root = await mkTmp("rmexact");
+    const nested = path.join(root, "container", "inner-rm");
+    await fs.mkdir(nested, { recursive: true });
+    await fs.writeFile(path.join(nested, "01-a.md"), "# A\n\na\n");
+    await fs.writeFile(path.join(nested, "02-b.md"), "# B\n\nb\n");
+
+    const exact = await resolveLocalRoadmapExact(root, "container/inner-rm");
+    assert.ok(exact);
+    assert.equal(exact!.id, "container/inner-rm");
+    assert.equal(exact!.chapterCount, 2);
+
+    const rootRoadmap = await mkTmp("rmexact-root");
+    await fs.writeFile(path.join(rootRoadmap, "01-a.md"), "# A\n\na\n");
+    await fs.writeFile(path.join(rootRoadmap, "02-b.md"), "# B\n\nb\n");
+    const rootExact = await resolveLocalRoadmapExact(
+      rootRoadmap,
+      path.basename(rootRoadmap),
+    );
+    assert.equal(rootExact?.absolutePath, await fs.realpath(rootRoadmap));
+  });
+
+  test("exact loaders block traversal, ignored dirs, deep roadmaps and outside symlinks", async () => {
+    const root = await mkTmp("rmsafe");
+    const repo = path.join(root, "safe-rm");
+    const outside = await mkTmp("rmoutside");
+    await fs.mkdir(path.join(repo, ".private"), { recursive: true });
+    await fs.mkdir(path.join(repo, "node_modules"), { recursive: true });
+    await fs.writeFile(path.join(repo, "01-a.md"), "# A\n\na\n");
+    await fs.writeFile(path.join(repo, "02-b.md"), "# B\n\nb\n");
+    await fs.writeFile(path.join(repo, "README.md"), "# readme\n");
+    await fs.writeFile(path.join(repo, "data.txt"), "x\n");
+    await fs.writeFile(path.join(repo, ".private", "secret.md"), "# secret\n");
+    await fs.writeFile(path.join(repo, "node_modules", "dep.md"), "# dep\n");
+    await fs.writeFile(path.join(outside, "outside.md"), "# outside\n");
+    await fs.symlink(outside, path.join(root, "escape"));
+    await fs.symlink(
+      path.join(outside, "outside.md"),
+      path.join(repo, "outside.md"),
+    );
+
+    const hidden = path.join(root, ".hidden-rm");
+    const dependency = path.join(root, "node_modules", "package-rm");
+    const tooDeep = path.join(root, "a", "b", "c", "d", "e", "f", "g");
+    for (const dir of [hidden, dependency, tooDeep]) {
+      await fs.mkdir(dir, { recursive: true });
+      await fs.writeFile(path.join(dir, "01-a.md"), "# A\n");
+      await fs.writeFile(path.join(dir, "02-b.md"), "# B\n");
+    }
+
+    assert.equal(await resolveLocalRoadmapExact(root, "../escape"), null);
+    assert.equal(await resolveLocalRoadmapExact(root, outside), null);
+    assert.equal(await resolveLocalRoadmapExact(root, "escape"), null);
+    assert.equal(await resolveLocalRoadmapExact(root, ".hidden-rm"), null);
+    assert.equal(
+      await resolveLocalRoadmapExact(root, "node_modules/package-rm"),
+      null,
+    );
+    assert.equal(
+      await resolveLocalRoadmapExact(root, "a/b/c/d/e/f/g"),
+      null,
+    );
+
+    const roadmap = await resolveLocalRoadmapExact(root, "safe-rm");
+    assert.ok(roadmap);
+    const chapter = await loadRoadmapChapter(roadmap!, "01-a.md");
+    assert.equal(chapter?.title, "A");
+    assert.equal(await loadRoadmapChapter(roadmap!, "../outside.md"), null);
+    assert.equal(await loadRoadmapChapter(roadmap!, "README.md"), null);
+    assert.equal(await loadRoadmapChapter(roadmap!, "data.txt"), null);
+    assert.equal(await loadRoadmapChapter(roadmap!, "outside.md"), null);
+    assert.equal(await loadRoadmapChapter(roadmap!, ".private/secret.md"), null);
+    assert.equal(await loadRoadmapChapter(roadmap!, "node_modules/dep.md"), null);
   });
 });
 

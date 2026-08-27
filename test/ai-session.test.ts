@@ -69,6 +69,9 @@ function fakeClient(
   options: {
     failOnStreamCall?: number;
     failBeforeTextOnStreamCall?: number;
+    waitBeforeTextOnStreamCall?: (
+      streamCall: number,
+    ) => Promise<void> | undefined;
     captureCreate?: (params: {
       stream?: boolean;
       max_tokens?: number;
@@ -97,6 +100,7 @@ function fakeClient(
               if (options.failBeforeTextOnStreamCall === thisCall) {
                 throw new Error("fake stream failed before text");
               }
+              await options.waitBeforeTextOnStreamCall?.(thisCall);
               if (text) {
                 yield {
                   type: "content_block_delta",
@@ -638,7 +642,19 @@ describe("POST /session/start", () => {
         "jvm-deep-dive",
       );
       assert.equal(res.headers.get("X-Model"), "claude-sonnet-4-6");
+      assert.match(
+        res.headers.get("X-Session-Setup-Ms") ?? "",
+        /^\d+(?:\.\d)?$/,
+      );
+      assert.match(
+        res.headers.get("Server-Timing") ?? "",
+        /session-setup;dur=/,
+      );
       const body = await res.text();
+      assert.ok(
+        body.startsWith("\n"),
+        "session metadata is flushed before the first AI token",
+      );
       assert.match(body, /첫 응답입니다/);
 
       // the session must now be retrievable
@@ -924,5 +940,38 @@ describe("POST /session/:id/cancel", () => {
     const res = await postJson(app, "/session/never-existed/cancel", {});
     assert.equal(res.status, 200);
     assert.equal((await res.json()).cancelled, false);
+  });
+
+  test("a cancelled slow first turn cannot recreate its persisted snapshot", async () => {
+    let releaseFirstTurn!: () => void;
+    const firstTurnGate = new Promise<void>((resolve) => {
+      releaseFirstTurn = resolve;
+    });
+    const app = createApi(baseConfig(), {
+      client: fakeClient("늦게 도착한 첫 응답", {
+        waitBeforeTextOnStreamCall: (call) =>
+          call === 1 ? firstTurnGate : undefined,
+      }),
+    });
+
+    const start = await postJson(app, "/session/start", {
+      chapterId: "01-x.md",
+      roadmapId: "jvm-deep-dive",
+    });
+    const sessionId = start.headers.get("X-Session-Id")!;
+    assert.ok(sessionId, "leading stream chunk must flush the session id");
+
+    const cancelled = await postJson(app, `/session/${sessionId}/cancel`, {});
+    assert.equal((await cancelled.json()).cancelled, true);
+    releaseFirstTurn();
+    await start.text();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    const snapshot = path.join(sessionDir, `${sessionId}.json`);
+    assert.equal(
+      await fs.stat(snapshot).catch(() => null),
+      null,
+      "late stream persistence must not resurrect a cancelled session",
+    );
   });
 });

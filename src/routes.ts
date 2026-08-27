@@ -12,7 +12,10 @@ import {
   type ClaudeClient,
 } from "./claude.js";
 import {
+  loadRoadmapChapter,
   loadRoadmapChapters,
+  resolveLocalRoadmapExact,
+  type Chapter,
   type Roadmap,
 } from "./roadmap.js";
 import {
@@ -1610,6 +1613,7 @@ function registerSessionRoutes(app: Hono, config: Config, client: ClaudeClient) 
   // ─────────────────────────────────────────────────────
 
   app.post("/session/start", async (c) => {
+    const setupStartedAt = performance.now();
     const body = await c.req
       .json<{
         chapterId: string;
@@ -1625,18 +1629,54 @@ function registerSessionRoutes(app: Hono, config: Config, client: ClaudeClient) 
       return c.json({ error: "Missing vault config" }, 400);
     }
 
-    const roadmap = await resolveRoadmap(config, body.roadmapId ?? null);
+    // canonical local id는 root 전체를 다시 찾지 않고 해당 디렉터리 하나만
+    // realpath/readdir로 검증한다. fuzzy/curated 입력만 기존 discover fallback을 탄다.
+    let roadmap: Roadmap | null = null;
+    if (
+      body.roadmapId &&
+      config.roadmapRoot &&
+      !body.roadmapId.startsWith("curated:")
+    ) {
+      const exact = await resolveLocalRoadmapExact(
+        config.roadmapRoot,
+        body.roadmapId,
+      );
+      if (
+        exact &&
+        (!config.pinnedRoadmapPath ||
+          path.resolve(exact.absolutePath) ===
+            path.resolve(config.pinnedRoadmapPath))
+      ) {
+        roadmap = exact;
+      }
+    }
+    roadmap ??= await resolveRoadmap(config, body.roadmapId ?? null);
     if (!roadmap) {
       return c.json({ error: "Roadmap not found" }, 404);
     }
 
-    const chapters = await loadRoadmapChapters(roadmap);
-    const chapter = chapters.find((ch) => ch.id === body.chapterId);
+    // 일반 학습은 선택 파일 하나만 읽는다. 검증 세션만 sibling 매칭 때문에
+    // 전체 목록을 유지한다. vault scan은 독립 I/O라 chapter read와 병렬 시작한다.
+    const notesPromise = listSpiralNotes(config.vaultPath);
+    let chapters: Chapter[] = [];
+    let chapter: Chapter | null;
+    let allNotes: Awaited<ReturnType<typeof listSpiralNotes>>;
+    if (body.verificationAttemptId) {
+      [chapters, allNotes] = await Promise.all([
+        loadRoadmapChapters(roadmap),
+        notesPromise,
+      ]);
+      chapter = chapters.find((item) => item.id === body.chapterId) ?? null;
+    } else {
+      [chapter, allNotes] = await Promise.all([
+        loadRoadmapChapter(roadmap, body.chapterId),
+        notesPromise,
+      ]);
+    }
     if (!chapter) {
       return c.json({ error: "Chapter not found in roadmap" }, 404);
     }
 
-    const allNotes = await listSpiralNotes(config.vaultPath);
     // v0.5.47 fix: chapterTitle을 같이 넘겨야 신 schema (chapter_id 없음) 노트를 매칭.
     // 안 넘기면 같은 챕터를 d1 끝낸 후 다시 클릭해도 prior 0건으로 잡혀 d2로 안 올라감.
     const priorOnSame = allNotes.filter((n) =>
@@ -1754,6 +1794,9 @@ function registerSessionRoutes(app: Hono, config: Config, client: ClaudeClient) 
     c.header("X-Roadmap-Name", encodeURIComponent(roadmap.name));
     c.header("X-Related-Count", String(related.length));
     c.header("X-Model", session.model ?? config.model);
+    const setupMs = performance.now() - setupStartedAt;
+    c.header("X-Session-Setup-Ms", setupMs.toFixed(1));
+    c.header("Server-Timing", `session-setup;dur=${setupMs.toFixed(1)}`);
     if (body.verificationAttemptId) {
       c.header("X-Verification-Attempt-Id", body.verificationAttemptId);
     }
@@ -1761,6 +1804,9 @@ function registerSessionRoutes(app: Hono, config: Config, client: ClaudeClient) 
     return streamText(c, async (stream) => {
       let deliveredText = "";
       try {
+        // metadata/session id를 첫 AI token보다 먼저 브라우저에 확실히 전달한다.
+        // leading newline은 Markdown 화면과 저장 transcript에는 보이지 않는다.
+        await stream.write("\n");
         const { text, usage } = await streamTurn(client, {
           system: SESSION_SYSTEM,
           messages: session.messages,

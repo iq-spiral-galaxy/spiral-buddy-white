@@ -458,6 +458,46 @@ describe("createTtlCache", () => {
     assert.equal(calls, 2);
   });
 
+  test("stale-while-revalidate returns the last value immediately and refreshes once", async () => {
+    const cache = createTtlCache<number>(0, { staleWhileRevalidate: true });
+    let calls = 0;
+    assert.equal(await cache.get("k", async () => (++calls, 1)), 1);
+
+    let finishRefresh!: (value: number) => void;
+    const loader = () =>
+      new Promise<number>((resolve) => {
+        calls += 1;
+        finishRefresh = resolve;
+      });
+    assert.equal(await cache.get("k", loader), 1, "stale value must not block");
+    assert.equal(await cache.get("k", loader), 1, "same refresh is deduplicated");
+    assert.equal(calls, 2);
+    finishRefresh(2);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(cache.peek("k"), 2);
+  });
+
+  test("update is write-through and protects the new value from an older refresh", async () => {
+    const cache = createTtlCache<number>(0, { staleWhileRevalidate: true });
+    await cache.get("k", async () => 1);
+    let finishOld!: (value: number) => void;
+    assert.equal(
+      await cache.get(
+        "k",
+        () =>
+          new Promise<number>((resolve) => {
+            finishOld = resolve;
+          }),
+      ),
+      1,
+    );
+    assert.equal(cache.update("k", (current) => current + 8), true);
+    finishOld(2);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(cache.peek("k"), 9);
+    assert.equal(cache.update("missing", () => 1), false);
+  });
+
   test("invalidate(key) forces a reload for that key only", async () => {
     const cache = createTtlCache<number>(10_000);
     let calls = 0;

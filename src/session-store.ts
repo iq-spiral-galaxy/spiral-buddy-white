@@ -131,6 +131,10 @@ function sessionFilePath(id: string): string {
  * tmp 파일 → rename으로 원자적 쓰기 (중간 크래시 시 corrupt 파일 방지).
  */
 export async function persistSession(session: ActiveSession): Promise<void> {
+  // 취소/저장 완료로 Map에서 제거된 session을 늦게 끝난 AI stream이 다시
+  // snapshot으로 살리지 못하게 한다. 참조 identity까지 비교해 같은 id의
+  // 다른 세대가 생겨도 옛 객체가 덮어쓰지 않게 한다.
+  if (sessions.get(session.id) !== session) return;
   try {
     await fs.mkdir(SESSION_DIR, { recursive: true });
     // chapterContextCache는 Map(직렬화 불가)이고 재생성 가능한 캐시 — 제외.
@@ -138,7 +142,15 @@ export async function persistSession(session: ActiveSession): Promise<void> {
     const target = sessionFilePath(session.id);
     const tmp = `${target}.tmp`;
     await fs.writeFile(tmp, JSON.stringify(serializable), "utf-8");
+    if (sessions.get(session.id) !== session) {
+      await fs.unlink(tmp).catch(() => {});
+      return;
+    }
     await fs.rename(tmp, target);
+    // deleteSession이 위 확인과 rename 사이에 실행된 극히 짧은 race도 정리한다.
+    if (sessions.get(session.id) !== session) {
+      await removePersistedSession(session.id);
+    }
   } catch (e) {
     console.warn(
       `[session-store] persist 실패 (${session.id}):`,
