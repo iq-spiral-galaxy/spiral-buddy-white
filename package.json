@@ -1,6 +1,6 @@
 {
   "name": "spiral-buddy-white",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Spiral learning companion for the study of mind & consciousness (Psyche) — \"Explain it, don't explain it away.\" Local desktop app bridging Claude and Obsidian: roadmap-driven sessions, mechanism→gap→experience notes, spiral revisit detection.",
   "type": "module",
   "main": "electron/main.cjs",

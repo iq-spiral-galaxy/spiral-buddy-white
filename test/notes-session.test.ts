@@ -15,6 +15,7 @@ import {
 } from "../src/note-writer.js";
 import {
   CHAPTER_CONTENT_MAX,
+  SESSION_SYSTEM,
   buildInitialContext,
   buildInitialContextBlocks,
   createSession,
@@ -454,6 +455,12 @@ describe("session-store / createSession + getSession + deleteSession", () => {
 // ───────────────────────── session-store: buildInitialContext(Blocks) ─────────────────────────
 
 describe("session-store / buildInitialContext", () => {
+  test("keeps bold markers inside quotation marks so Korean Markdown renders cleanly", () => {
+    assert.match(SESSION_SYSTEM, /write "\*\*important sentence\*\*"/);
+    assert.match(SESSION_SYSTEM, /never \*\*"important sentence"\*\*/);
+    assert.match(SESSION_SYSTEM, /Korean particles/);
+  });
+
   test("includes chapter title, depth, and content", () => {
     const ch = makeChapter({ title: "버퍼 풀", content: "버퍼 풀은 캐시다." });
     const ctx = buildInitialContext(ch, [], 1);
